@@ -1,0 +1,807 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" x-data="{ 
+  lang: localStorage.getItem('bims_lang') || 'en',
+  showHotlines: false,
+  showVerify: false,
+  showPrivacy: false,
+  showDocModal: false,
+  showRegisterModal: false,
+  selectedDocType: 'Barangay Clearance',
+  selectedPurpose: 'Local employment',
+  isJobSeeker: false,
+  uploadedFileName: '',
+  get calculatedFee() {
+    if (this.isJobSeeker || this.selectedDocType === 'Certificate of Indigency') {
+      return '₱0.00';
+    }
+    return '₱50.00';
+  },
+  openDocModal(docType) {
+    if (docType) this.selectedDocType = docType;
+    this.showDocModal = true;
+  },
+  setLang(l) {
+    this.lang = l;
+    localStorage.setItem('bims_lang', l);
+  }
+}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Barangay {{ barangay_info.BarangayName|default:"San Roque" }} | Citizen Services & Official Portal</title>
+  
+  <!-- Inter Google Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Base BIMS Design Tokens & Clean Scrollbars -->
+  <link rel="stylesheet" href="{% static 'css/bims.css' %}">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            civic: {
+              50: '#f0f7ff',
+              100: '#ebf5ff',
+              600: '#0b5cad',
+              700: '#084887',
+              800: '#063564',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.10/dist/cdn.min.js"></script>
+  <style>
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    [x-cloak] { display: none !important; }
+  </style>
+</head>
+<body class="bg-white text-slate-900 font-sans antialiased min-h-screen flex flex-col pb-16 md:pb-0">
+
+  <!-- ========================================================================
+       1. EMERGENCY HOTLINE STRIP (Red #DC2626)
+       ======================================================================== -->
+  <div class="bg-[#dc2626] text-white py-2 px-4 sm:px-8 text-xs font-medium">
+    <div class="max-w-6xl mx-auto flex items-center justify-between">
+      <div>
+        <span class="hidden sm:inline" x-text="lang === 'fil' ? 'Emergency hotline: ' : 'Emergency hotline: '">Emergency hotline: </span>
+        <span class="sm:hidden" x-text="lang === 'fil' ? 'Emergency: ' : 'Emergency: '">Emergency: </span>
+        <strong class="font-bold tracking-wide">{{ barangay_info.ContactNumber|default:"0917-888-BIMS" }}</strong>
+      </div>
+      <div>
+        <button @click="showHotlines = true" class="text-white hover:underline font-medium text-xs focus:outline-none">
+          <span x-text="lang === 'fil' ? 'Iba pang hotline' : 'More hotlines'">More hotlines</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       2. TOP HEADER
+       ======================================================================== -->
+  <header class="border-b border-slate-200 bg-white">
+    <div class="max-w-6xl mx-auto px-4 sm:px-8 py-3.5 flex items-center justify-between">
+      <!-- Barangay Name & Location -->
+      <div>
+        <a href="{% url 'landing_page' %}" class="block text-decoration-none">
+          <div class="text-lg font-bold text-slate-900 leading-tight">
+            Barangay {{ barangay_info.BarangayName|default:"San Roque" }}
+          </div>
+          <div class="text-xs text-slate-500 font-normal">
+            {{ barangay_info.CityOrMunicipality|default:"City Center" }}, {{ barangay_info.Province|default:"Metro Manila" }}
+          </div>
+        </a>
+      </div>
+
+      <!-- Right: Language Toggle & Log In Button -->
+      <div class="flex items-center gap-3 sm:gap-4">
+        <!-- Language Switcher: EN | FIL -->
+        <div class="text-xs font-semibold text-slate-600 tracking-wide flex items-center gap-1">
+          <button @click="setLang('en')" :class="lang === 'en' ? 'text-slate-900 font-bold' : 'text-slate-400 hover:text-slate-700'" class="px-1 py-0.5 transition">EN</button>
+          <span class="text-slate-300">|</span>
+          <button @click="setLang('fil')" :class="lang === 'fil' ? 'text-slate-900 font-bold' : 'text-slate-400 hover:text-slate-700'" class="px-1 py-0.5 transition">FIL</button>
+        </div>
+
+        <!-- Log In / Dashboard Button -->
+        {% if request.user.is_authenticated %}
+          <a href="{% url 'dashboard' %}" class="bg-[#0b5cad] hover:bg-[#084887] text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-md transition inline-flex items-center justify-center min-h-[38px]">
+            <span x-text="lang === 'fil' ? 'Aking Dashboard' : 'My Dashboard'">My Dashboard</span>
+          </a>
+        {% else %}
+          <a href="{% url 'login' %}" class="bg-[#0b5cad] hover:bg-[#084887] text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-md transition inline-flex items-center justify-center min-h-[38px]">
+            <span x-text="lang === 'fil' ? 'Mag-login' : 'Log In'">Log In</span>
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================================================
+       3. HERO SECTION
+       ======================================================================== -->
+  <section class="py-12 sm:py-16 px-4 text-center">
+    <div class="max-w-2xl mx-auto">
+      <h1 class="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mb-3">
+        <span x-text="lang === 'fil' ? 'Serbisyo ng barangay, online.' : 'Barangay services, online.'">Barangay services, online.</span>
+      </h1>
+      
+      <!-- Desktop Subtitle -->
+      <p class="hidden sm:block text-slate-600 text-sm sm:text-base leading-relaxed mb-6" x-text="lang === 'fil' ? 'Kumuha ng mga dokumento, mag-schedule ng appointment, at magbasa ng mga anunsyo nang hindi na kailangang pumila sa barangay hall.' : 'Request documents, book appointments, and read announcements without lining up at the hall.'">
+        Request documents, book appointments, and read announcements without lining up at the hall.
+      </p>
+
+      <!-- Mobile Subtitle -->
+      <p class="sm:hidden text-slate-600 text-xs sm:text-sm leading-relaxed mb-6" x-text="lang === 'fil' ? 'Kumuha ng mga dokumento at mag-schedule mula sa iyong telepono.' : 'Request documents and book appointments from your phone.'">
+        Request documents and book appointments from your phone.
+      </p>
+
+      <!-- 2 Primary Buttons (Triggering Modal Popups) -->
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
+        <button type="button" @click="openDocModal('Barangay Clearance')" class="w-full sm:w-auto bg-[#0b5cad] hover:bg-[#084887] text-white text-sm font-semibold px-6 py-2.5 rounded-md min-h-[44px] inline-flex items-center justify-center transition">
+          <span x-text="lang === 'fil' ? 'Kumuha ng Dokumento' : 'Request a Document'">Request a Document</span>
+        </button>
+        <button type="button" @click="showRegisterModal = true" class="w-full sm:w-auto bg-white hover:bg-slate-50 text-[#0b5cad] border border-[#0b5cad] text-sm font-semibold px-6 py-2.5 rounded-md min-h-[44px] inline-flex items-center justify-center transition">
+          <span x-text="lang === 'fil' ? 'Mag-rehistro bilang Residente' : 'Sign Up as Resident'">Sign Up as Resident</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================
+       4. "WHAT DO YOU NEED?" SECTION
+       ======================================================================== -->
+  <section class="max-w-6xl mx-auto px-4 sm:px-8 py-6 w-full">
+    <h2 class="text-base sm:text-lg font-bold text-slate-900 mb-4" x-text="lang === 'fil' ? 'Ano ang kailangan mo?' : 'What do you need?'">
+      What do you need?
+    </h2>
+
+    <!-- Desktop Grid: 3 columns x 2 rows -->
+    <div class="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <!-- 1. Barangay Clearance -->
+      <div class="border border-slate-200 rounded-lg p-5 flex flex-col justify-between hover:border-slate-300 transition">
+        <div>
+          <h3 class="font-bold text-slate-900 text-sm mb-1" x-text="lang === 'fil' ? 'Barangay Clearance' : 'Barangay Clearance'">Barangay Clearance</h3>
+          <p class="text-xs text-slate-500 mb-4" x-text="lang === 'fil' ? 'Para sa trabaho, negosyo, o requirements.' : 'For work, business, or requirements.'">For work, business, or requirements.</p>
+        </div>
+        <div>
+          <button @click="openDocModal('Barangay Clearance')" class="text-xs font-semibold text-[#0b5cad] hover:underline" x-text="lang === 'fil' ? 'Simulan ang kahilingan' : 'Start request'">Start request</button>
+        </div>
+      </div>
+
+      <!-- 2. Certificate of Residency -->
+      <div class="border border-slate-200 rounded-lg p-5 flex flex-col justify-between hover:border-slate-300 transition">
+        <div>
+          <h3 class="font-bold text-slate-900 text-sm mb-1" x-text="lang === 'fil' ? 'Katunayan ng Paninirahan (Residency)' : 'Certificate of Residency'">Certificate of Residency</h3>
+          <p class="text-xs text-slate-500 mb-4" x-text="lang === 'fil' ? 'Patunay na ikaw ay naninirahan sa barangay.' : 'Proof that you live in the barangay.'">Proof that you live in the barangay.</p>
+        </div>
+        <div>
+          <button @click="openDocModal('Certificate of Residency')" class="text-xs font-semibold text-[#0b5cad] hover:underline" x-text="lang === 'fil' ? 'Simulan ang kahilingan' : 'Start request'">Start request</button>
+        </div>
+      </div>
+
+      <!-- 3. Certificate of Indigency -->
+      <div class="border border-slate-200 rounded-lg p-5 flex flex-col justify-between hover:border-slate-300 transition">
+        <div>
+          <h3 class="font-bold text-slate-900 text-sm mb-1" x-text="lang === 'fil' ? 'Certificate of Indigency' : 'Certificate of Indigency'">Certificate of Indigency</h3>
+          <p class="text-xs text-slate-500 mb-4" x-text="lang === 'fil' ? 'Para sa tulong medikal, ayuda, at libreng bayarin.' : 'For assistance and fee waivers.'">For assistance and fee waivers.</p>
+        </div>
+        <div>
+          <button @click="openDocModal('Certificate of Indigency')" class="text-xs font-semibold text-[#0b5cad] hover:underline" x-text="lang === 'fil' ? 'Simulan ang kahilingan' : 'Start request'">Start request</button>
+        </div>
+      </div>
+
+      <!-- 4. Barangay ID -->
+      <div class="border border-slate-200 rounded-lg p-5 flex flex-col justify-between hover:border-slate-300 transition">
+        <div>
+          <h3 class="font-bold text-slate-900 text-sm mb-1" x-text="lang === 'fil' ? 'Barangay ID' : 'Barangay ID'">Barangay ID</h3>
+          <p class="text-xs text-slate-500 mb-4" x-text="lang === 'fil' ? 'Mag-apply o mag-renew ng opisyal na ID.' : 'Apply for or renew your ID.'">Apply for or renew your ID.</p>
+        </div>
+        <div>
+          <button @click="openDocModal('Barangay ID')" class="text-xs font-semibold text-[#0b5cad] hover:underline" x-text="lang === 'fil' ? 'Simulan ang kahilingan' : 'Start request'">Start request</button>
+        </div>
+      </div>
+
+      <!-- 5. Health Center -->
+      <div class="border border-slate-200 rounded-lg p-5 flex flex-col justify-between hover:border-slate-300 transition">
+        <div>
+          <h3 class="font-bold text-slate-900 text-sm mb-1" x-text="lang === 'fil' ? 'Health Center' : 'Health Center'">Health Center</h3>
+          <p class="text-xs text-slate-500 mb-4" x-text="lang === 'fil' ? 'Tingnan ang libreng serbisyo at schedule ng bakuna.' : 'See free services and schedules.'">See free services and schedules.</p>
+        </div>
+        <div>
+          <a href="{% url 'health_records_list' %}" class="text-xs font-semibold text-[#0b5cad] hover:underline" x-text="lang === 'fil' ? 'Mag-book ng appointment' : 'Book appointment'">Book appointment</a>
+        </div>
+      </div>
+
+      <!-- 6. File a Concern -->
+      <div class="border border-slate-200 rounded-lg p-5 flex flex-col justify-between hover:border-slate-300 transition">
+        <div>
+          <h3 class="font-bold text-slate-900 text-sm mb-1" x-text="lang === 'fil' ? 'Maghain ng Reklamo / Usapin' : 'File a Concern'">File a Concern</h3>
+          <p class="text-xs text-slate-500 mb-4" x-text="lang === 'fil' ? 'Ipaabot ang reklamo o insidente sa Lupong Tagapamayapa.' : 'Report an issue to the barangay.'">Report an issue to the barangay.</p>
+        </div>
+        <div>
+          <a href="{% url 'incident_create' %}" class="text-xs font-semibold text-[#0b5cad] hover:underline" x-text="lang === 'fil' ? 'Magpadala ng reklamo' : 'Send a concern'">Send a concern</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Grid: 2 columns compact buttons (as shown in phone screen) -->
+    <div class="grid grid-cols-2 gap-3 sm:hidden">
+      <button type="button" @click="openDocModal('Barangay Clearance')" class="border border-slate-200 rounded-lg p-4 text-center font-semibold text-xs text-slate-900 hover:border-slate-300 active:bg-slate-50 min-h-[52px] flex items-center justify-center">
+        <span x-text="lang === 'fil' ? 'Clearance' : 'Clearance'">Clearance</span>
+      </button>
+      <button type="button" @click="openDocModal('Certificate of Residency')" class="border border-slate-200 rounded-lg p-4 text-center font-semibold text-xs text-slate-900 hover:border-slate-300 active:bg-slate-50 min-h-[52px] flex items-center justify-center">
+        <span x-text="lang === 'fil' ? 'Residency' : 'Residency'">Residency</span>
+      </button>
+      <button type="button" @click="openDocModal('Certificate of Indigency')" class="border border-slate-200 rounded-lg p-4 text-center font-semibold text-xs text-slate-900 hover:border-slate-300 active:bg-slate-50 min-h-[52px] flex items-center justify-center">
+        <span x-text="lang === 'fil' ? 'Indigency' : 'Indigency'">Indigency</span>
+      </button>
+      <button type="button" @click="openDocModal('Barangay ID')" class="border border-slate-200 rounded-lg p-4 text-center font-semibold text-xs text-slate-900 hover:border-slate-300 active:bg-slate-50 min-h-[52px] flex items-center justify-center">
+        <span x-text="lang === 'fil' ? 'Barangay ID' : 'Barangay ID'">Barangay ID</span>
+      </button>
+      <a href="{% url 'health_records_list' %}" class="border border-slate-200 rounded-lg p-4 text-center font-semibold text-xs text-slate-900 hover:border-slate-300 active:bg-slate-50 min-h-[52px] flex items-center justify-center">
+        <span x-text="lang === 'fil' ? 'Health Center' : 'Health Center'">Health Center</span>
+      </a>
+      <a href="{% url 'incident_create' %}" class="border border-slate-200 rounded-lg p-4 text-center font-semibold text-xs text-slate-900 hover:border-slate-300 active:bg-slate-50 min-h-[52px] flex items-center justify-center">
+        <span x-text="lang === 'fil' ? 'Magsumbong' : 'File a Concern'">File a Concern</span>
+      </a>
+    </div>
+  </section>
+
+  <!-- ========================================================================
+       5. "LATEST ANNOUNCEMENTS" SECTION
+       ======================================================================== -->
+  <section class="max-w-6xl mx-auto px-4 sm:px-8 py-8 w-full">
+    <h2 class="text-base sm:text-lg font-bold text-slate-900 mb-4" x-text="lang === 'fil' ? 'Pinakabagong mga Patalastas' : 'Latest announcements'">
+      Latest announcements
+    </h2>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for ann in announcements %}
+        <div class="border border-slate-200 rounded-lg p-5 flex flex-col justify-between hover:border-slate-300 transition">
+          <div>
+            <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+              [{{ ann.PublishDate|date:"M d, Y"|upper }}]
+            </div>
+            <h3 class="font-bold text-slate-900 text-sm mb-2 leading-snug">
+              {{ ann.Title }}
+            </h3>
+            <p class="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+              {{ ann.Content }}
+            </p>
+          </div>
+        </div>
+      {% empty %}
+        <!-- Default Mock Announcement Cards matching the user's template -->
+        <div class="border border-slate-200 rounded-lg p-5">
+          <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">[DATE]</div>
+          <h3 class="font-bold text-slate-900 text-sm mb-1.5">[Announcement title]</h3>
+          <p class="text-xs text-slate-600">[One-line summary of the announcement.]</p>
+        </div>
+        <div class="border border-slate-200 rounded-lg p-5">
+          <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">[DATE]</div>
+          <h3 class="font-bold text-slate-900 text-sm mb-1.5">[Announcement title]</h3>
+          <p class="text-xs text-slate-600">[One-line summary of the announcement.]</p>
+        </div>
+        <div class="border border-slate-200 rounded-lg p-5">
+          <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">[DATE]</div>
+          <h3 class="font-bold text-slate-900 text-sm mb-1.5">[Event title]</h3>
+          <p class="text-xs text-slate-600">[One-line summary of the event.]</p>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- ========================================================================
+       6. FOOTER
+       ======================================================================== -->
+  <footer class="border-t border-slate-200 bg-white text-xs text-slate-500 py-6 px-4 sm:px-8 mt-auto">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+      <!-- Left: Office hours & Address -->
+      <div>
+        <span>Office hours: Monday – Friday, 8:00 AM – 5:00 PM &middot; {{ barangay_info.BarangayHallAddress|default:"Barangay Hall Complex" }}</span>
+      </div>
+
+      <!-- Right: Document Verification & Data Privacy Notice -->
+      <div class="flex items-center gap-2">
+        <button @click="showVerify = true" class="hover:underline text-slate-600 focus:outline-none">Verify a document</button>
+        <span>&middot;</span>
+        <button @click="showPrivacy = true" class="hover:underline text-slate-600 focus:outline-none">Data Privacy Notice</button>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ========================================================================
+       7. MOBILE BOTTOM NAVIGATION (Fixed at bottom on phones)
+       ======================================================================== -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 h-14 bg-white border-t border-slate-200 flex items-center justify-around z-50 text-[11px] font-semibold text-slate-600">
+    <a href="{% url 'landing_page' %}" class="flex flex-col items-center justify-center flex-1 py-1 text-[#0b5cad]">
+      <span x-text="lang === 'fil' ? 'Tahanan' : 'Home'">Home</span>
+    </a>
+    <button @click="openDocModal('Barangay Clearance')" class="flex flex-col items-center justify-center flex-1 py-1 hover:text-slate-900 focus:outline-none">
+      <span x-text="lang === 'fil' ? 'Serbisyo' : 'Services'">Services</span>
+    </button>
+    <a href="#announcements" class="flex flex-col items-center justify-center flex-1 py-1 hover:text-slate-900">
+      <span x-text="lang === 'fil' ? 'Balita' : 'News'">News</span>
+    </a>
+    <button @click="showHotlines = true" class="flex flex-col items-center justify-center flex-1 py-1 text-[#dc2626] font-bold focus:outline-none">
+      <span x-text="lang === 'fil' ? 'Saklolo' : 'Emergency'">Emergency</span>
+    </button>
+    <a href="{% url 'login' %}" class="flex flex-col items-center justify-center flex-1 py-1 hover:text-slate-900">
+      <span x-text="lang === 'fil' ? 'Mag-login' : 'Log In'">Log In</span>
+    </a>
+  </nav>
+
+  <!-- ========================================================================
+       8. MODAL 1: "SIGN UP AS RESIDENT" (Exact Match to User Image 1)
+       ======================================================================== -->
+  <div x-show="showRegisterModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 sm:p-6 overflow-y-auto">
+    <div @click.away="showRegisterModal = false" class="bg-white rounded-xl border border-slate-200 max-w-xl w-full p-6 sm:p-8 shadow-2xl space-y-5 my-8 max-h-[90vh] overflow-y-auto">
+      
+      <!-- Top Title and Close -->
+      <div class="flex items-start justify-between border-b border-slate-100 pb-3">
+        <div>
+          <h2 class="text-xl font-bold text-slate-900">Sign Up as Resident</h2>
+          <p class="text-xs text-slate-500 mt-1">
+            The Barangay Secretary will check your details before you can log in. You will get an email once reviewed.
+          </p>
+        </div>
+        <button @click="showRegisterModal = false" class="text-xs font-semibold text-slate-500 hover:text-slate-900 p-1">Close</button>
+      </div>
+
+      <form action="{% url 'register' %}" method="POST" enctype="multipart/form-data" class="space-y-5">
+        {% csrf_token %}
+
+        <!-- SECTION: PERSONAL INFORMATION -->
+        <div class="space-y-3">
+          <div class="text-[11px] font-bold uppercase tracking-wider text-[#0b5cad]">PERSONAL INFORMATION</div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">First name</label>
+              <input type="text" name="FirstName" class="w-full border border-slate-300 rounded-md px-3 py-2 text-xs focus:ring-2 focus:ring-[#0b5cad] outline-none" required>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Middle name</label>
+              <input type="text" name="MiddleName" class="w-full border border-slate-300 rounded-md px-3 py-2 text-xs focus:ring-2 focus:ring-[#0b5cad] outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Last name</label>
+              <input type="text" name="LastName" class="w-full border border-slate-300 rounded-md px-3 py-2 text-xs focus:ring-2 focus:ring-[#0b5cad] outline-none" required>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Birth date</label>
+              <input type="date" name="BirthDate" class="w-full border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-700 focus:ring-2 focus:ring-[#0b5cad] outline-none" required>
+              <span class="text-[11px] text-slate-400 mt-0.5 block">You must be 18 or older to register.</span>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Sex</label>
+              <div class="flex items-center gap-6 mt-2 text-xs text-slate-700">
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                  <input type="radio" name="Sex" value="Male" checked class="text-[#0b5cad] focus:ring-[#0b5cad]">
+                  <span>Male</span>
+                </label>
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                  <input type="radio" name="Sex" value="Female" class="text-[#0b5cad] focus:ring-[#0b5cad]">
+                  <span>Female</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION: CONTACT -->
+        <div class="space-y-3 pt-2 border-t border-slate-100">
+          <div class="text-[11px] font-bold uppercase tracking-wider text-[#0b5cad]">CONTACT</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Gmail address</label>
+              <input type="email" name="Email" class="w-full border border-slate-300 rounded-md px-3 py-2 text-xs focus:ring-2 focus:ring-[#0b5cad] outline-none" required placeholder="name@gmail.com">
+              <span class="text-[11px] text-slate-400 mt-0.5 block">We send your approval status here.</span>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Mobile number</label>
+              <input type="tel" name="ContactNo" maxlength="11" minlength="11" pattern="09[0-9]{9}" inputmode="numeric"
+                     oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11)"
+                     class="w-full border border-slate-300 rounded-md px-3 py-2 text-xs focus:ring-2 focus:ring-[#0b5cad] outline-none font-mono tracking-wider" placeholder="09171234567">
+              <span class="text-[11px] text-slate-400 mt-0.5 block">11-digits starting with 09 for SMS alerts.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION: ADDRESS AND HOUSEHOLD -->
+        <div class="space-y-3 pt-2 border-t border-slate-100">
+          <div class="text-[11px] font-bold uppercase tracking-wider text-[#0b5cad]">ADDRESS AND HOUSEHOLD</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Purok / Zone</label>
+              <select name="PurokID" class="w-full border border-slate-300 rounded-md px-3 py-2 text-xs focus:ring-2 focus:ring-[#0b5cad] outline-none" required>
+                <option value="">Select purok</option>
+                {% for p in puroks %}
+                  <option value="{{ p.PurokID }}">{{ p.PurokName }} (Zone {{ p.ZoneNo }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Street and house no.</label>
+              <input type="text" name="StreetAddress" class="w-full border border-slate-300 rounded-md px-3 py-2 text-xs focus:ring-2 focus:ring-[#0b5cad] outline-none" required>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Household no.</label>
+              <input type="text" name="HouseholdNumber" class="w-full border border-slate-300 rounded-md px-3 py-2 text-xs focus:ring-2 focus:ring-[#0b5cad] outline-none" required>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Relation to household head</label>
+              <select name="RelationshipToHead" class="w-full border border-slate-300 rounded-md px-3 py-2 text-xs focus:ring-2 focus:ring-[#0b5cad] outline-none" required>
+                <option value="">Select one</option>
+                <option value="Head">Head</option>
+                <option value="Spouse">Spouse</option>
+                <option value="Child">Child</option>
+                <option value="Parent">Parent</option>
+                <option value="Sibling">Sibling</option>
+                <option value="Relative">Relative</option>
+                <option value="Tenant">Tenant</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION: PROOF OF RESIDENCY -->
+        <div class="space-y-2 pt-2 border-t border-slate-100">
+          <div class="text-[11px] font-bold uppercase tracking-wider text-[#0b5cad]">PROOF OF RESIDENCY</div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Valid ID or proof of residency</label>
+          <div class="border border-dashed border-slate-300 rounded-lg p-3.5 bg-slate-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div class="text-xs text-slate-500">
+              <div>PhilSys ID, Voter's ID, Driver's License, or a recent Meralco or water bill.</div>
+              <div class="text-[11px] text-slate-400 mt-0.5">JPG, PNG or PDF, up to 5 MB.</div>
+              <div x-show="uploadedFileName" class="text-xs font-semibold text-emerald-700 mt-1" x-text="'Selected: ' + uploadedFileName"></div>
+            </div>
+            <label class="border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-4 py-2 rounded-md cursor-pointer shrink-0">
+              Choose file
+              <input type="file" name="ProofOfResidencyImage" class="hidden" @change="uploadedFileName = $event.target.files[0] ? $event.target.files[0].name : ''">
+            </label>
+          </div>
+        </div>
+
+        <!-- Hidden Defaults for civil & employment to keep intake ultra-fast -->
+        <input type="hidden" name="CivilStatus" value="Single">
+        <input type="hidden" name="EmploymentStatus" value="Employed">
+
+        <!-- Approval Credential Notice (Replaces Username & Password) -->
+        <div class="bg-blue-50/70 border border-blue-200/80 rounded-lg p-3 text-xs text-blue-900 flex items-start gap-2.5">
+          <svg class="w-4 h-4 text-[#0b5cad] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <div class="leading-relaxed">
+            <span class="font-semibold text-slate-900 block">No password needed now!</span>
+            <span class="text-slate-600 text-[11px]">Once your registration is verified and approved by the Barangay Secretary, your <strong>Username</strong> and <strong>Temporary Password</strong> will be automatically emailed to your Gmail address.</span>
+          </div>
+        </div>
+
+        <!-- Action Footer -->
+        <div class="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
+          <button type="button" @click="showRegisterModal = false" class="border border-slate-300 text-slate-700 text-xs font-semibold px-5 py-2.5 rounded-md hover:bg-slate-50">
+            Cancel
+          </button>
+          <button type="submit" class="bg-[#0b5cad] hover:bg-[#084887] text-white text-xs font-semibold px-6 py-2.5 rounded-md">
+            Submit for Review
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       9. MODAL 2 & 3: "REQUEST A DOCUMENT" (Exact Match to Desktop Image 2 & Mobile Image 3)
+       ======================================================================== -->
+  <div x-show="showDocModal" x-cloak class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4">
+    <!-- Desktop Modal Container (centered) / Mobile Bottom Sheet (slides from bottom) -->
+    <div @click.away="showDocModal = false" class="bg-white rounded-t-2xl sm:rounded-xl border border-slate-200 max-w-md w-full p-6 shadow-2xl space-y-4">
+      
+      <!-- Mobile Pill Handle (Visible only on mobile) -->
+      <div class="sm:hidden flex justify-center -mt-2 mb-2">
+        <div class="w-12 h-1 bg-slate-300 rounded-full"></div>
+      </div>
+
+      <!-- Title & Close -->
+      <div class="flex items-start justify-between border-b border-slate-100 pb-2">
+        <div>
+          <h2 class="text-base sm:text-lg font-bold text-slate-900">Request a Document</h2>
+          <p class="text-xs text-slate-500 mt-0.5">
+            Takes about a minute. <span class="hidden sm:inline">We will email you when it is ready.</span>
+          </p>
+        </div>
+        <button @click="showDocModal = false" class="text-xs font-semibold text-slate-500 hover:text-slate-900 p-1">Close</button>
+      </div>
+
+      <!-- Form Body (Exact replica of Image 2 & 3) -->
+      <form id="docRequestForm" action="{% url 'document_request_create' %}" method="POST" class="space-y-4"
+            @submit="if (!{{ request.user.is_authenticated|yesno:'true,false' }}) { $event.preventDefault(); window.customAlert({ title: 'Resident Account Required', message: 'To request an official barangay clearance or certificate, please register as a resident or log in so the Barangay Secretary can verify your identity.', primaryText: 'Sign Up as Resident', variant: 'primary', triggerElement: $el }).then(() => { showDocModal = false; showRegisterModal = true; }); }">
+        {% csrf_token %}
+
+        <!-- Document type -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1.5">Document type</label>
+          <select name="DocumentTypeID" x-model="selectedDocType" class="w-full border border-slate-300 rounded-md px-3 py-2.5 text-xs text-slate-800 focus:ring-2 focus:ring-[#0b5cad] outline-none" required>
+            {% for dt in doc_types %}
+              <option value="{{ dt.DocumentTypeID }}">{{ dt.DocumentTypeName }}</option>
+            {% empty %}
+              <option value="1">Barangay Clearance</option>
+              <option value="2">Certificate of Residency</option>
+              <option value="3">Certificate of Indigency</option>
+              <option value="4">Barangay ID</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Purpose -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1.5">Purpose</label>
+          <select name="Purpose" x-model="selectedPurpose" class="w-full border border-slate-300 rounded-md px-3 py-2.5 text-xs text-slate-800 focus:ring-2 focus:ring-[#0b5cad] outline-none" required>
+            <option value="Local employment">Local employment</option>
+            <option value="Scholarship requirement">Scholarship requirement</option>
+            <option value="Bank account opening">Bank account opening</option>
+            <option value="Postal ID / Government ID">Postal ID / Government ID</option>
+            <option value="Meralco or Water application">Meralco or Water application</option>
+            <option value="Business permit requirement">Business permit requirement</option>
+          </select>
+          <span class="text-[11px] text-slate-400 mt-1 block">This is printed on your certificate.</span>
+        </div>
+
+        <!-- First-time job seeker checkbox box -->
+        <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs">
+          <label class="flex items-start gap-2.5 cursor-pointer">
+            <input type="checkbox" x-model="isJobSeeker" class="mt-0.5 rounded text-[#0b5cad] focus:ring-[#0b5cad]">
+            <div>
+              <span class="font-semibold text-slate-800">I am a first-time job seeker</span>
+              <span class="text-[11px] text-slate-500 block mt-0.5">Free under RA 11261. Your ID will be checked at the barangay hall.</span>
+            </div>
+          </label>
+        </div>
+
+        <!-- Fee Box -->
+        <div class="border border-slate-200 rounded-lg p-3.5 flex items-center justify-between">
+          <div>
+            <div class="text-xs font-semibold text-slate-800">Fee</div>
+            <div class="text-[11px] text-slate-400">Free for Indigency and First-Time Job Seeker.</div>
+          </div>
+          <div class="border border-[#0b5cad]/40 px-2.5 py-0.5 rounded bg-white text-xl font-bold text-slate-900 tracking-tight" x-text="calculatedFee">₱50.00</div>
+        </div>
+
+        <!-- Desktop Buttons (Side-by-side: Cancel on left, Submit Request on right) -->
+        <div class="hidden sm:flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+          <button type="button" @click="showDocModal = false" class="border border-slate-300 text-slate-700 text-xs font-semibold px-5 py-2.5 rounded-md hover:bg-slate-50">
+            Cancel
+          </button>
+          <button type="submit" class="bg-[#0b5cad] hover:bg-[#084887] text-white text-xs font-semibold px-5 py-2.5 rounded-md">
+            Submit Request
+          </button>
+        </div>
+
+        <!-- Mobile Buttons (Stacked: Submit Request top, Cancel bottom) -->
+        <div class="sm:hidden space-y-2 pt-2 border-t border-slate-100">
+          <button type="submit" class="w-full bg-[#0b5cad] hover:bg-[#084887] text-white text-xs font-semibold py-3 rounded-md">
+            Submit Request
+          </button>
+          <button type="button" @click="showDocModal = false" class="w-full border border-slate-300 text-slate-700 text-xs font-semibold py-2.5 rounded-md hover:bg-slate-50">
+            Cancel
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       10. MODAL: "MORE HOTLINES" DRAWER
+       ======================================================================== -->
+  <div x-show="showHotlines" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div @click.away="showHotlines = false" class="bg-white rounded-xl border border-slate-200 max-w-sm w-full p-6 shadow-xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+        <h3 class="font-bold text-slate-900 text-sm" x-text="lang === 'fil' ? 'Mga Emergency Hotline sa Barangay' : 'Barangay Emergency Hotlines'">
+          Barangay Emergency Hotlines
+        </h3>
+        <button @click="showHotlines = false" class="text-slate-400 hover:text-slate-700 font-bold">&times;</button>
+      </div>
+      <div class="space-y-2.5 text-xs text-slate-700">
+        <div class="flex justify-between py-1 border-b border-slate-100">
+          <span>Barangay Hall:</span>
+          <strong>{{ barangay_info.ContactNumber|default:"0917-888-BIMS" }}</strong>
+        </div>
+        <div class="flex justify-between py-1 border-b border-slate-100">
+          <span>Barangay Tanod Patrol:</span>
+          <strong>0919-111-TANOD</strong>
+        </div>
+        <div class="flex justify-between py-1 border-b border-slate-100">
+          <span>Health Center:</span>
+          <strong>0920-222-CARE</strong>
+        </div>
+        <div class="flex justify-between py-1 border-b border-slate-100">
+          <span>Police Precinct (PNP):</span>
+          <strong>911 / 117</strong>
+        </div>
+        <div class="flex justify-between py-1">
+          <span>BFP Fire Station:</span>
+          <strong>160</strong>
+        </div>
+      </div>
+      <button @click="showHotlines = false" class="w-full bg-slate-900 text-white text-xs font-semibold py-2 rounded-md">
+        Close
+      </button>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       11. MODAL: "VERIFY A DOCUMENT"
+       ======================================================================== -->
+  <div x-show="showVerify" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div @click.away="showVerify = false" class="bg-white rounded-xl border border-slate-200 max-w-md w-full p-6 shadow-xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+        <h3 class="font-bold text-slate-900 text-sm">Verify an Official Document</h3>
+        <button @click="showVerify = false" class="text-slate-400 hover:text-slate-700 font-bold">&times;</button>
+      </div>
+      <p class="text-xs text-slate-500">
+        Enter the unique QR security code printed at the bottom of your certificate (e.g. BIMS-BC-2026...).
+      </p>
+      <form onsubmit="event.preventDefault(); const h = document.getElementById('modalHashInput').value.trim(); if(h) window.location.href='/verify/'+encodeURIComponent(h)+'/';" class="space-y-3">
+        <input type="text" id="modalHashInput" placeholder="Enter QR Security Hash" class="w-full border border-slate-300 rounded-md px-3 py-2 text-xs focus:ring-2 focus:ring-[#0b5cad] outline-none" required>
+        <div class="flex gap-2">
+          <button type="submit" class="flex-1 bg-[#0b5cad] hover:bg-[#084887] text-white text-xs font-semibold py-2 rounded-md">
+            Verify Now
+          </button>
+          <button type="button" @click="showVerify = false" class="px-3 border border-slate-300 text-slate-700 text-xs rounded-md">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       12. MODAL: DATA PRIVACY NOTICE
+       ======================================================================== -->
+  <div x-show="showPrivacy" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div @click.away="showPrivacy = false" class="bg-white rounded-xl border border-slate-200 max-w-md w-full p-6 shadow-xl space-y-3">
+      <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+        <h3 class="font-bold text-slate-900 text-sm">Republic Act No. 10173 (Data Privacy Act)</h3>
+        <button @click="showPrivacy = false" class="text-slate-400 hover:text-slate-700 font-bold">&times;</button>
+      </div>
+      <p class="text-xs text-slate-600 leading-relaxed">
+        The Barangay Information Management System (BIMS) strictly adheres to the Philippine Data Privacy Act of 2012. All census records, identification documents, and transaction logs are encrypted, access-controlled by designated barangay officers, and maintained exclusively for official civic services.
+      </p>
+      <button @click="showPrivacy = false" class="w-full bg-slate-900 text-white text-xs font-semibold py-2 rounded-md">
+        I Understand
+      </button>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       BOTTOM TOAST NOTIFICATIONS (Landing Page)
+       ======================================================================== -->
+  <div id="landingToastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 max-w-sm pointer-events-none" x-data="landingToastManager()">
+    <template x-for="toast in toasts" :key="toast.id">
+      <div class="pointer-events-auto bg-white rounded-xl shadow-2xl border p-4 flex items-start gap-3 transition-all duration-300 transform translate-y-0 text-xs"
+           :class="{
+             'border-emerald-300 bg-emerald-50/95 text-emerald-950': toast.type === 'success',
+             'border-red-300 bg-red-50/95 text-red-950': toast.type === 'error',
+             'border-amber-300 bg-amber-50/95 text-amber-950': toast.type === 'warning',
+             'border-sky-300 bg-sky-50/95 text-sky-950': toast.type === 'info'
+           }">
+        <div class="mt-0.5 shrink-0">
+          <template x-if="toast.type === 'success'">
+            <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          </template>
+          <template x-if="toast.type === 'error'">
+            <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          </template>
+          <template x-if="toast.type === 'warning'">
+            <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+          </template>
+          <template x-if="toast.type === 'info'">
+            <svg class="w-5 h-5 text-[#0b5cad]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          </template>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="font-bold text-slate-900 mb-0.5" x-text="toast.title" x-show="toast.title"></div>
+          <div class="text-slate-700 leading-relaxed" x-text="toast.message"></div>
+        </div>
+        <button @click="removeToast(toast.id)" class="text-slate-400 hover:text-slate-700 p-0.5 text-base font-bold leading-none shrink-0">&times;</button>
+      </div>
+    </template>
+  </div>
+
+  <!-- Shared Custom Dialog -->
+  {% include 'bims/shared_dialog.html' %}
+
+  <!-- Hidden Django Server Messages for Landing Page Toasts -->
+  <div id="landing-server-messages" style="display: none;" aria-hidden="true">
+    {% if messages %}
+      {% for msg in messages %}
+        {% if msg and msg|stringformat:"s" != "None" and msg|stringformat:"s" != "" %}
+          <span class="landing-server-msg-item" data-message="{{ msg|escape }}" data-tags="{{ msg.tags|default:'info' }}"></span>
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+  </div>
+
+  <script>
+    function landingToastManager() {
+      return {
+        toasts: [],
+        init() {
+          window.showToast = (message, type = 'info', title = '') => {
+            if (!message || typeof message !== 'string') return;
+            const clean = message.trim();
+            if (!clean || clean.toLowerCase() === 'none' || clean.toLowerCase() === 'undefined' || clean.toLowerCase() === 'null') return;
+            const id = Date.now() + Math.random();
+            this.toasts.push({ id, message: clean, type, title });
+            setTimeout(() => {
+              this.removeToast(id);
+            }, 5500);
+          };
+
+          // Render server messages into bottom toasts safely
+          const msgElements = document.querySelectorAll('#landing-server-messages .landing-server-msg-item');
+          msgElements.forEach(el => {
+            const msg = el.getAttribute('data-message');
+            const tags = el.getAttribute('data-tags') || 'info';
+            if (msg) {
+              window.showToast(msg, tags, '');
+            }
+          });
+        },
+        removeToast(id) {
+          this.toasts = this.toasts.filter(t => t.id !== id);
+        }
+      };
+    }
+
+    // Scrollbar smooth listener
+    (function() {
+      let scrollTimer = null;
+      window.addEventListener('scroll', function() {
+        document.body.classList.add('is-scrolling');
+        clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(function() {
+          document.body.classList.remove('is-scrolling');
+        }, 800);
+      }, { passive: true });
+    })();
+
+    // Dirty changes tracking for modals
+    (function() {
+      let modalDirty = false;
+      document.addEventListener('input', function(e) {
+        if (e.target.closest('#docRequestForm, form[action*="register"]')) {
+          modalDirty = true;
+        }
+      });
+      document.addEventListener('submit', function() {
+        modalDirty = false;
+      });
+      window.addEventListener('beforeunload', function(e) {
+        if (modalDirty) {
+          e.preventDefault();
+          e.returnValue = 'You have unsaved details in the registration or request form. Leave anyway?';
+          return e.returnValue;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

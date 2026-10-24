@@ -1,0 +1,200 @@
+{% extends 'bims/base.html' %}
+
+{% block page_title %}Process Request #{{ doc_req.RequestID }}{% endblock %}
+{% block page_icon %}<i data-lucide="check-square"></i>{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'documents_list' %}" class="btn btn-secondary btn-sm min-h-[40px] px-3 font-semibold">
+    <i data-lucide="arrow-left" style="width: 15px; height: 15px;"></i>
+    <span>Back to List</span>
+  </a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 680px; margin: 0 auto;">
+  <div class="card-header flex items-center justify-between">
+    <div class="card-title">
+      <i data-lucide="stamp" class="text-[#0B5CAD]"></i>
+      <span>Review Application, Documents & Official Signatories</span>
+    </div>
+    <span class="badge badge-mediation font-mono text-xs">Request #{{ doc_req.RequestID }}</span>
+  </div>
+  <div class="card-body space-y-5">
+    <!-- Application Details Card with Edit Ability -->
+    <div style="background: #f8fafc; padding: 16px; border-radius: var(--radius-md); font-size: 0.88rem; display: flex; flex-direction: column; gap: 8px;" class="border border-slate-200"
+         x-data="{ showEditAppModal: false }">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-200">
+        <div>
+          <strong>Applicant:</strong> {{ doc_req.ResidentID.full_name }}
+          <span class="text-xs text-slate-500 block font-normal mt-0.5">
+            Resident #{{ doc_req.ResidentID.ResidentID }} &bull; Birth Date: {{ doc_req.ResidentID.BirthDate|date:"M d, Y" }} (Age {{ doc_req.ResidentID.age }})
+          </span>
+        </div>
+        <button type="button" @click="showEditAppModal = true" class="btn btn-secondary btn-sm text-xs font-semibold px-2.5 py-1 text-[#0b5cad] hover:bg-sky-50 flex items-center gap-1">
+          <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+          <span>Edit Details</span>
+        </button>
+      </div>
+      <div><strong>Address:</strong> {{ doc_req.ResidentID.HouseholdID.StreetAddress }}, {{ doc_req.ResidentID.HouseholdID.PurokID.PurokName }} (Household #{{ doc_req.ResidentID.HouseholdID.HouseholdNumber }})</div>
+      <div><strong>Document Type:</strong> <span class="text-[#0B5CAD] font-bold">{{ doc_req.DocumentTypeID.DocumentTypeName }}</span></div>
+      <div><strong>Standard Fee:</strong> PHP {{ doc_req.DocumentTypeID.StandardFee|floatformat:2 }}</div>
+      <div><strong>Stated Purpose:</strong> {{ doc_req.Purpose }}</div>
+      <div><strong>Date Filed:</strong> {{ doc_req.RequestDate|date:"F d, Y - h:i A" }}</div>
+
+      <!-- Accessible Shared Edit Application Details Modal -->
+      <div x-cloak x-show="showEditAppModal"
+           class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+           @keydown.escape.window="showEditAppModal = false"
+           @click.self="showEditAppModal = false"
+           role="dialog"
+           aria-modal="true">
+        <div class="w-full max-w-xl bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden transform transition-all text-left">
+          <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-sky-100 text-[#0b5cad] flex items-center justify-center">
+                <i data-lucide="file-edit" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-slate-900">Update Document Application & Letter Body</h3>
+                <p class="text-[11px] text-slate-500">Edit document type, purpose, or custom letter statements</p>
+              </div>
+            </div>
+            <button type="button" @click="showEditAppModal = false" class="text-xs font-semibold text-slate-400 hover:text-slate-700 px-2 py-1 rounded">Close</button>
+          </div>
+
+          <form method="POST" class="p-5 space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update_details">
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Document Type *</label>
+              <select name="DocumentTypeID" class="form-control w-full min-h-[44px]" required>
+                {% for dt in doc_types %}
+                  <option value="{{ dt.DocumentTypeID }}" {% if dt.DocumentTypeID == doc_req.DocumentTypeID.DocumentTypeID %}selected{% endif %}>
+                    {{ dt.DocumentTypeName }} (PHP {{ dt.StandardFee|floatformat:2 }})
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Stated Purpose *</label>
+              <input type="text" name="Purpose" class="form-control w-full min-h-[44px]" required value="{{ doc_req.Purpose }}" placeholder="State purpose of document...">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1 flex items-center justify-between">
+                <span>Certificate Letter Context / Body Text (Optional)</span>
+                <span class="text-[10px] text-slate-400 font-normal lowercase">(separate paragraphs with blank line)</span>
+              </label>
+              <textarea name="CustomLetterBody" rows="5" class="form-control w-full text-xs font-serif leading-relaxed" placeholder="Leave blank to use official legal template, or enter customized paragraphs here...">{{ doc_req.CustomLetterBody|default:current_letter_body }}</textarea>
+              <span class="text-[11px] text-slate-400 mt-1 block">
+                Customizing this text will override the standard template paragraphs on the printed certificate.
+              </span>
+            </div>
+
+            <!-- PRIMARY ACTION FIRST -->
+            <div class="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-2.5">
+              <button type="submit" class="btn btn-primary w-full sm:w-auto font-bold px-5 min-h-[40px]">
+                <i data-lucide="save" style="width: 15px; height: 15px;"></i>
+                <span>Save Changes</span>
+              </button>
+              <button type="button" @click="showEditAppModal = false" class="btn btn-secondary w-full sm:w-auto min-h-[40px]">
+                <span>Cancel</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Uploaded Supporting Letter / Docs -->
+      {% if doc_req.AttachmentFile %}
+        <div class="pt-2 mt-2 border-t border-slate-200 flex items-center justify-between">
+          <div class="flex items-center gap-2 text-xs text-slate-700">
+            <i data-lucide="paperclip" class="w-4 h-4 text-[#0b5cad]"></i>
+            <span class="font-semibold">Attached Supporting Letter / Doc:</span>
+          </div>
+          <a href="{{ doc_req.AttachmentFile.url }}" target="_blank" class="btn btn-secondary btn-sm text-xs font-bold text-[#0b5cad] hover:bg-sky-50">
+            <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+            <span>View Attachment</span>
+          </a>
+        </div>
+      {% else %}
+        <div class="pt-2 mt-2 border-t border-slate-200 text-xs text-slate-400 flex items-center gap-1.5">
+          <i data-lucide="file" class="w-3.5 h-3.5"></i>
+          <span>No external letter or document attached by applicant.</span>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Official Signatories Info Box -->
+    <div class="p-3 bg-sky-50 border border-sky-200 rounded-lg text-xs space-y-1.5">
+      <div class="font-bold text-[#084887] flex items-center gap-1.5">
+        <i data-lucide="award" class="w-4 h-4"></i>
+        <span>Official Barangay Signatories & Verification:</span>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700 pt-1">
+        <div class="p-2 bg-white rounded border border-sky-100">
+          <span class="text-[10px] text-slate-400 uppercase font-bold block">Primary Signatory:</span>
+          <strong class="text-slate-900 block">{{ barangay_info.PunongBarangay|default:"Hon. Ferdinand D. Morales" }}</strong>
+          <span class="text-[11px] text-slate-500">Punong Barangay</span>
+        </div>
+        <div class="p-2 bg-white rounded border border-sky-100">
+          <span class="text-[10px] text-slate-400 uppercase font-bold block">Attesting Officer:</span>
+          <strong class="text-slate-900 block">{{ barangay_info.BarangaySecretary|default:"Hon. Elena V. Reyes" }}</strong>
+          <span class="text-[11px] text-slate-500">Barangay Secretary</span>
+        </div>
+      </div>
+      <p class="text-[11px] text-slate-500 mt-1">Approving will apply the official digital stamp signature and generate anti-tamper QR code verification.</p>
+    </div>
+
+    <form method="POST">
+      {% csrf_token %}
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Official Receipt (OR) Number</label>
+          <input type="text" name="OfficialReceiptNo" class="form-control" placeholder="e.g. OR-2026-9011">
+          <span style="font-size: 0.72rem; color: var(--text-muted);">Required if standard fee is greater than PHP 0.00</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Amount Collected (PHP)</label>
+          <input type="number" step="0.01" name="AmountPaid" class="form-control" value="{{ doc_req.DocumentTypeID.StandardFee }}">
+        </div>
+      </div>
+
+      <!-- Action Buttons: PRIMARY ACTION FIRST per standards -->
+      <div class="pt-4 border-t border-slate-200 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <!-- 1. PRIMARY ACTION FIRST: Approve & Stamp -->
+          <button type="submit" name="action" value="approve" class="btn btn-emerald min-h-[44px] font-bold"
+                  data-confirm="Approve and digitally stamp this {{ doc_req.DocumentTypeID.DocumentTypeName }} for {{ doc_req.ResidentID.full_name }}? Signatures of Punong Barangay and Secretary will be applied."
+                  data-confirm-title="Approve & Digitally Stamp"
+                  data-confirm-btn="Approve & Stamp"
+                  data-cancel-btn="Cancel"
+                  data-confirm-variant="emerald">
+            <i data-lucide="stamp" style="width: 16px; height: 16px;"></i>
+            <span>Approve & Digitally Stamp</span>
+          </button>
+
+          <!-- 2. Release Action -->
+          <button type="submit" name="action" value="release" class="btn btn-primary min-h-[44px]">
+            <i data-lucide="send" style="width: 16px; height: 16px;"></i>
+            <span>Mark Released</span>
+          </button>
+        </div>
+
+        <!-- 3. Reject Action -->
+        <button type="submit" name="action" value="reject" class="btn btn-danger min-h-[44px]"
+                data-confirm="Are you sure you want to reject document request #{{ doc_req.RequestID }} for {{ doc_req.ResidentID.full_name }}? The resident will be notified."
+                data-confirm-title="Reject Document Request"
+                data-confirm-btn="Reject Application"
+                data-cancel-btn="Keep Request"
+                data-confirm-variant="danger">
+          <i data-lucide="x-circle" style="width: 16px; height: 16px;"></i>
+          <span>Reject</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document Authentication Portal | {{ barangay_info.BarangayName|default:"Barangay Portal" }}</title>
+  <link rel="stylesheet" href="{% static 'css/bims.css' %}">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="auth-wrapper" style="background: #0f172a;">
+  <div class="auth-card" style="max-width: 520px;">
+    {% if doc %}
+      <div style="text-align: center; margin-bottom: 20px;">
+        <div style="width: 60px; height: 60px; border-radius: 50%; background: #dcfce7; color: #15803d; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;">
+          <i data-lucide="check-circle" style="width: 36px; height: 36px;"></i>
+        </div>
+        <h2 style="font-size: 1.3rem; font-weight: 800; color: #15803d;">AUTHENTIC DOCUMENT VERIFIED</h2>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">
+          Officially recorded in {{ barangay_info.BarangayName|default:"Barangay" }} BIMS database
+        </p>
+      </div>
+
+
+      <div style="background: #f8fafc; border: 1px solid var(--surface-border); border-radius: var(--radius-md); padding: 18px; font-size: 0.88rem; display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+        <div><strong>Certificate Type:</strong> {{ doc.DocumentTypeID.DocumentTypeName }}</div>
+        <div><strong>Issued To:</strong> {{ doc.ResidentID.full_name }}</div>
+        <div><strong>Purok & Address:</strong> {{ doc.ResidentID.HouseholdID.StreetAddress }}, {{ doc.ResidentID.HouseholdID.PurokID.PurokName }}</div>
+        <div><strong>Purpose:</strong> {{ doc.Purpose }}</div>
+        <div><strong>Date of Request:</strong> {{ doc.RequestDate|date:"F d, Y - h:i A" }}</div>
+        <div><strong>Status:</strong> <span class="badge badge-approved">{{ doc.RequestStatus }}</span></div>
+        {% if doc.PaymentID %}
+          <div><strong>Payment OR #:</strong> {{ doc.PaymentID.OfficialReceiptNo }} (PHP {{ doc.PaymentID.AmountPaid|floatformat:2 }})</div>
+        {% endif %}
+        <div><strong>Unique Security Hash:</strong> <code style="font-size: 0.8rem;">{{ doc.QRCodeHash }}</code></div>
+      </div>
+
+    {% else %}
+      <div style="text-align: center; margin-bottom: 20px;">
+        <div style="width: 60px; height: 60px; border-radius: 50%; background: #fee2e2; color: #b91c1c; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;">
+          <i data-lucide="alert-octagon" style="width: 36px; height: 36px;"></i>
+        </div>
+        <h2 style="font-size: 1.3rem; font-weight: 800; color: #b91c1c;">INVALID OR UNVERIFIED DOCUMENT</h2>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 6px;">
+          No matching certificate was found for hash: <code>{{ qr_hash }}</code>. This document may be counterfeit or revoked.
+        </p>
+      </div>
+    {% endif %}
+
+    <div style="text-align: center; margin-top: 10px;">
+      <a href="{% url 'login' %}" class="btn btn-secondary btn-sm">
+        <i data-lucide="arrow-left" style="width: 14px; height: 14px;"></i> Return to BIMS Portal
+      </a>
+    </div>
+  </div>
+
+  <script>
+    lucide.createIcons();
+  </script>
+</body>
+</html>

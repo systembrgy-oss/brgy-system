@@ -1,0 +1,141 @@
+{% extends 'bims/base.html' %}
+
+{% block page_title %}{% if is_edit %}Edit Citizen: {{ resident.full_name }}{% else %}Register New Resident{% endif %}{% endblock %}
+{% block page_icon %}<i data-lucide="{% if is_edit %}user-cog{% else %}user-plus{% endif %}"></i>{% endblock %}
+
+{% block page_actions %}
+  <a href="{% if is_edit %}{% url 'resident_detail' resident.ResidentID %}{% else %}{% url 'residents_list' %}{% endif %}" class="btn btn-secondary btn-sm min-h-[40px] px-3 font-semibold">
+    <i data-lucide="arrow-left" style="width: 15px; height: 15px;"></i>
+    <span>Back</span>
+  </a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 900px; margin: 0 auto;">
+  <div class="card-header flex items-center justify-between">
+    <div class="card-title">
+      <i data-lucide="{% if is_edit %}user-check{% else %}user-plus{% endif %}" class="text-[#0B5CAD]"></i>
+      <span>{% if is_edit %}Update Citizen Profile & Demographics{% else %}Resident Profiling & Demographic Intake{% endif %}</span>
+    </div>
+    {% if is_edit %}
+      <span class="badge badge-mediation font-mono text-xs">Resident #{{ resident.ResidentID }}</span>
+    {% endif %}
+  </div>
+  <div class="card-body">
+    <form method="POST">
+      {% csrf_token %}
+      <div style="font-size: 0.85rem; font-weight: 700; color: var(--primary); text-transform: uppercase; margin-bottom: 14px; border-bottom: 1px solid var(--surface-border); padding-bottom: 6px;">
+        1. Personal Demographics
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">First Name *</label>
+          <input type="text" name="FirstName" class="form-control" required placeholder="e.g. Juan" value="{{ resident.FirstName|default:'' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Middle Name</label>
+          <input type="text" name="MiddleName" class="form-control" placeholder="e.g. Santos" value="{{ resident.MiddleName|default:'' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Last Name *</label>
+          <input type="text" name="LastName" class="form-control" required placeholder="e.g. Dela Cruz" value="{{ resident.LastName|default:'' }}">
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Sex *</label>
+          <select name="Sex" class="form-control" required>
+            <option value="Male" {% if resident.Sex == 'Male' %}selected{% endif %}>Male</option>
+            <option value="Female" {% if resident.Sex == 'Female' %}selected{% endif %}>Female</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Birth Date *</label>
+          <input type="date" name="BirthDate" class="form-control" required value="{{ resident.BirthDate|date:'Y-m-d' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Civil Status *</label>
+          <select name="CivilStatus" class="form-control" required>
+            <option value="Single" {% if resident.CivilStatus == 'Single' %}selected{% endif %}>Single</option>
+            <option value="Married" {% if resident.CivilStatus == 'Married' %}selected{% endif %}>Married</option>
+            <option value="Widowed" {% if resident.CivilStatus == 'Widowed' %}selected{% endif %}>Widowed</option>
+            <option value="Separated" {% if resident.CivilStatus == 'Separated' %}selected{% endif %}>Separated</option>
+            <option value="Divorced" {% if resident.CivilStatus == 'Divorced' %}selected{% endif %}>Divorced</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Employment Status *</label>
+          <select name="EmploymentStatus" class="form-control" required>
+            <option value="Employed" {% if resident.EmploymentStatus == 'Employed' %}selected{% endif %}>Employed</option>
+            <option value="Unemployed" {% if resident.EmploymentStatus == 'Unemployed' %}selected{% endif %}>Unemployed</option>
+            <option value="Self-Employed" {% if resident.EmploymentStatus == 'Self-Employed' %}selected{% endif %}>Self-Employed</option>
+            <option value="Student" {% if resident.EmploymentStatus == 'Student' %}selected{% endif %}>Student</option>
+            <option value="Retired" {% if resident.EmploymentStatus == 'Retired' %}selected{% endif %}>Retired</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Contact Number (11 Digits)</label>
+          <input type="tel" name="ContactNo" maxlength="11" minlength="11" pattern="09[0-9]{9}" inputmode="numeric"
+                 oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11)"
+                 class="form-control font-mono tracking-wider" placeholder="09171234567" value="{{ resident.ContactNo|default:'' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Voter Status *</label>
+          <select name="IsVoter" class="form-control" required>
+            <option value="1" {% if resident.IsVoter %}selected{% endif %}>Yes (Registered Voter)</option>
+            <option value="0" {% if not resident.IsVoter and resident %}selected{% endif %}>No (Non-Voter)</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="font-size: 0.85rem; font-weight: 700; color: var(--primary); text-transform: uppercase; margin: 24px 0 14px; border-bottom: 1px solid var(--surface-border); padding-bottom: 6px;">
+        2. Household & Residence Assignment
+      </div>
+      <div class="form-grid">
+        <div class="form-group" style="grid-column: span 2;">
+          <label class="form-label">Household Number & Address *</label>
+          <select name="HouseholdID" class="form-control" required>
+            <option value="">Select Household</option>
+            {% for h in households %}
+              <option value="{{ h.HouseholdID }}" {% if resident.HouseholdID_id == h.HouseholdID %}selected{% endif %}>
+                {{ h.HouseholdNumber }} - {{ h.StreetAddress }} ({{ h.PurokID.PurokName }} - Zone {{ h.PurokID.ZoneNo }})
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Relationship to Family Head *</label>
+          <input type="text" name="RelationshipToHead" class="form-control" required placeholder="e.g. Head, Spouse, Son, Daughter" value="{{ resident.RelationshipToHead|default:'' }}">
+        </div>
+      </div>
+
+      <div style="font-size: 0.85rem; font-weight: 700; color: var(--primary); text-transform: uppercase; margin: 24px 0 14px; border-bottom: 1px solid var(--surface-border); padding-bottom: 6px;">
+        3. Sector Classification (Select all that apply)
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px;">
+        {% for sec in sectors %}
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 0.88rem; background: #f8fafc; padding: 10px 14px; border-radius: var(--radius-md); border: 1px solid var(--surface-border); cursor: pointer;">
+            <input type="checkbox" name="sectors" value="{{ sec.SectorID }}" {% if sec.SectorID in assigned_sector_ids %}checked{% endif %}>
+            <span>{{ sec.SectorName }}</span>
+          </label>
+        {% endfor %}
+      </div>
+
+      <!-- Action Buttons: PRIMARY ACTION FIRST per standards -->
+      <div style="display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--surface-border); padding-top: 18px;">
+        <button type="submit" class="btn btn-primary min-h-[44px] px-6 font-bold">
+          <i data-lucide="save" style="width: 16px; height: 16px;"></i>
+          <span>{% if is_edit %}Update Citizen Record{% else %}Save Resident Record{% endif %}</span>
+        </button>
+        <a href="{% if is_edit %}{% url 'resident_detail' resident.ResidentID %}{% else %}{% url 'residents_list' %}{% endif %}" class="btn btn-secondary min-h-[44px] px-4 font-semibold">
+          <span>Cancel</span>
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

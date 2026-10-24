@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: bims-barangay-system
+    runtime: python
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn bims_project.wsgi:application"
+    plan: free
+    envVars:
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bims-database
+          property: connectionString
+      - key: EMAIL_BACKEND
+        value: "django.core.mail.backends.smtp.EmailBackend"
+      - key: EMAIL_HOST
+        value: "smtp.gmail.com"
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USE_TLS
+        value: "True"
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        value: "Barangay Baan km3 <systembrgy@gmail.com>"
+
+databases:
+  - name: bims-database
+    databaseName: bims
+    user: bims_admin
+    plan: free

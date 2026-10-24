@@ -1,0 +1,53 @@
+{% extends 'bims/base.html' %}
+
+{% block page_title %}Schedule Conciliation Hearing{% endblock %}
+{% block page_icon %}<i data-lucide="calendar-plus"></i>{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'incident_detail' incident.IncidentID %}" class="btn btn-secondary btn-sm">
+    <i data-lucide="arrow-left" style="width: 15px; height: 15px;"></i>
+    <span>Back to Case</span>
+  </a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 600px; margin: 0 auto;">
+  <div class="card-header">
+    <div class="card-title">
+      <i data-lucide="scale"></i>
+      <span>Hearing Summons for Case #{{ incident.IncidentID }}</span>
+    </div>
+  </div>
+  <div class="card-body">
+    <div style="background: #f8fafc; padding: 14px; border-radius: var(--radius-md); margin-bottom: 18px; font-size: 0.85rem;">
+      <div><strong>Complainant:</strong> {{ incident.ComplainantResidentID.full_name }}</div>
+      <div><strong>Respondent:</strong> {{ incident.RespondentName }}</div>
+    </div>
+
+    <form method="POST">
+      {% csrf_token %}
+      <div class="form-group">
+        <label class="form-label">Hearing Date & Time *</label>
+        <input type="datetime-local" name="HearingDate" class="form-control" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Summons Details / Notice Level</label>
+        <input type="text" name="SummonsDetails" class="form-control" placeholder="e.g. 1st Official Summons Letter served to parties">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Initial Remarks / Instructions</label>
+        <textarea name="Remarks" class="form-control" rows="3" placeholder="e.g. To appear before Punong Barangay / Pangkat Tagapagkasundo..."></textarea>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
+        <a href="{% url 'incident_detail' incident.IncidentID %}" class="btn btn-secondary">Cancel</a>
+        <button type="submit" class="btn btn-emerald">
+          <i data-lucide="check" style="width: 16px; height: 16px;"></i> Schedule Hearing
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

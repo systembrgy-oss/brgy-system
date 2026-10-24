@@ -1,0 +1,228 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ doc_type.DocumentTypeName }} - {{ resident.full_name }}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{% static 'css/bims.css' %}">
+  <style>
+    [x-cloak] { display: none !important; }
+  </style>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.10/dist/cdn.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body style="background-color: #cbd5e1; padding: 20px 0;" x-data="{ showEditLetterModal: false }">
+
+  <!-- Print Action Toolbar (Hidden during printing) -->
+  <div class="no-print" style="max-width: 850px; margin: 0 auto 16px; display: flex; justify-content: space-between; align-items: center; background: #0f172a; padding: 12px 20px; border-radius: 8px; color: #fff; flex-wrap: wrap; gap: 10px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <i data-lucide="file-check" style="color: #38bdf8;"></i>
+      <span style="font-weight: 600; font-size: 0.95rem;">Official Certificate Preview (Ready for Print / PDF)</span>
+    </div>
+    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+      {% if request.user.RoleID.RoleName in 'Admin,Staff' or request.user.is_superuser %}
+        <!-- Dynamic Letter Body Editor Trigger -->
+        <button type="button" onclick="openEditLetterModal()" class="btn btn-primary btn-sm" style="font-size: 0.78rem;" title="Edit the context or body paragraphs of this letter">
+          <i data-lucide="file-edit" style="width: 14px; height: 14px;"></i>
+          <span>Edit Letter Body</span>
+        </button>
+
+        <a href="{% url 'document_process' doc.RequestID %}" class="btn btn-secondary btn-sm" style="font-size: 0.78rem;" title="Edit document type, purpose, or fee collection">
+          <i data-lucide="sliders" style="width: 14px; height: 14px; color: #0284c7;"></i>
+          <span>Edit Details & Fee</span>
+        </a>
+
+        <a href="{% url 'resident_edit' resident.ResidentID %}" class="btn btn-secondary btn-sm" style="font-size: 0.78rem;" title="Edit citizen name, age, address, or civil status">
+          <i data-lucide="user-cog" style="width: 14px; height: 14px; color: #16a34a;"></i>
+          <span>Edit Citizen Profile</span>
+        </a>
+
+        <a href="{% url 'barangay_settings' %}" class="btn btn-secondary btn-sm" style="font-size: 0.78rem;" title="Edit barangay header, hall address, and official signatories">
+          <i data-lucide="building" style="width: 14px; height: 14px; color: #d97706;"></i>
+          <span>Edit Officials</span>
+        </a>
+      {% endif %}
+
+      <button onclick="window.print()" class="btn btn-emerald btn-sm">
+        <i data-lucide="printer" style="width: 14px; height: 14px;"></i>
+        <span>Print / Save as PDF</span>
+      </button>
+
+      <a href="{% url 'documents_list' %}" class="btn btn-secondary btn-sm">
+        <span>Back</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- Modal to Dynamically Edit Context & Body of Letter -->
+  <div id="editLetterModal" style="display: none;"
+       class="fixed inset-0 z-[9999] items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs no-print"
+       onclick="if (event.target === this) closeEditLetterModal();"
+       role="dialog"
+       aria-modal="true">
+    <div class="w-full max-w-2xl bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden text-left font-sans">
+      <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-sky-100 text-[#0b5cad] flex items-center justify-center">
+            <i data-lucide="file-text" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900">Customize Letter Body & Context</h3>
+            <p class="text-[11px] text-slate-500">Edit paragraphs, statements, or special conditions for this certificate</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeEditLetterModal()" class="text-xs font-semibold text-slate-400 hover:text-slate-700 px-2 py-1 rounded">Close</button>
+      </div>
+
+      <form method="POST" class="p-5 space-y-4">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="update_letter_body">
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+            Certificate Body Paragraphs (Separate paragraphs with a blank line)
+          </label>
+          <textarea name="CustomLetterBody" rows="8" class="form-control w-full text-xs font-serif leading-relaxed p-3 border border-slate-300 rounded-lg" placeholder="Write or customize the certification text here...">{{ current_letter_body }}</textarea>
+          <span class="text-[11px] text-slate-400 mt-1 block">
+            Tip: Press Enter twice between paragraphs to create neat indented paragraphs on the official certificate.
+          </span>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+            Stated Purpose
+          </label>
+          <input type="text" name="Purpose" class="form-control w-full text-xs" value="{{ doc.Purpose }}" required placeholder="e.g. Local Employment, Scholarship Requirement">
+        </div>
+
+        <!-- PRIMARY ACTION FIRST -->
+        <div class="pt-3 border-t border-slate-200 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <button type="submit" class="btn btn-primary min-h-[40px] px-5 font-bold text-xs">
+              <i data-lucide="check" style="width: 14px; height: 14px;"></i>
+              <span>Save & Update Certificate</span>
+            </button>
+            <button type="button" onclick="closeEditLetterModal()" class="btn btn-secondary min-h-[40px] text-xs">
+              Cancel
+            </button>
+          </div>
+          <button type="button" onclick="document.querySelector('textarea[name=CustomLetterBody]').value = '';" class="text-xs text-slate-500 hover:text-red-600 underline">
+            Reset to Standard Legal Template
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Official Government Certificate Sheet -->
+  <div class="certificate-sheet">
+    <!-- Header -->
+    <div class="certificate-header">
+      <h4>Republic of the Philippines</h4>
+      <h4>Province of {{ barangay_info.Province|default:"Metro Manila" }}</h4>
+      <h4>{{ barangay_info.CityOrMunicipality|default:"City Center" }}</h4>
+      <h3>{{ barangay_info.BarangayName|upper|default:"BARANGAY SAN ROQUE" }}</h3>
+      <h4 style="margin-top: 6px; font-weight: bold; letter-spacing: 0.1em; color: #0284c7;">OFFICE OF THE PUNONG BARANGAY</h4>
+    </div>
+
+    <!-- Certificate Title -->
+    <div class="certificate-title">
+      {{ doc_type.DocumentTypeName }}
+    </div>
+
+    <!-- Salutation -->
+    <div style="font-size: 13pt; font-weight: bold; margin-bottom: 20px; text-transform: uppercase;">
+      TO WHOM IT MAY CONCERN:
+    </div>
+
+    <!-- Dynamic Body Paragraphs -->
+    <div class="certificate-body">
+      {% for para in letter_paragraphs %}
+        <p style="text-indent: 40px; margin-bottom: 16px; text-align: justify; line-height: 1.6;">
+          {{ para|safe }}
+        </p>
+      {% endfor %}
+
+      <p style="text-indent: 40px; margin-bottom: 24px;">
+        This certification is issued upon the request of the above-named person for the purpose of:
+        <br>
+        <span style="display: block; text-align: center; font-weight: bold; font-size: 13pt; text-decoration: underline; margin: 10px 0;">
+          {{ doc.Purpose|upper }}
+        </span>
+        and for whatever legal intents and purposes it may serve.
+      </p>
+
+      <p style="text-indent: 40px;">
+        Issued this <strong>{{ issue_date }}</strong> at {{ barangay_info.BarangayHallAddress|default:"Barangay Hall" }}.
+      </p>
+    </div>
+
+    <!-- Signatories & QR Verification Footer -->
+    <div class="certificate-footer">
+      <!-- Embedded QR Verification & OR -->
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <img src="{{ qr_b64 }}" alt="QR Verification" style="width: 105px; height: 105px; border: 1px solid #cbd5e1; padding: 4px; background: #fff;">
+        <div style="font-size: 9pt; line-height: 1.35; color: #334155;">
+          <strong>DIGITAL AUTHENTICATION</strong><br>
+          Hash: <code style="font-size: 8.5pt;">{{ doc.QRCodeHash }}</code><br>
+          Scan to verify authenticity.<br>
+          {% if doc.PaymentID %}
+            OR #: {{ doc.PaymentID.OfficialReceiptNo }}<br>
+            Amount: PHP {{ doc.PaymentID.AmountPaid|floatformat:2 }}<br>
+          {% endif %}
+          Status: Verified & Signed
+        </div>
+      </div>
+
+      <!-- Dual Official Signatories (Punong Barangay & Barangay Secretary) -->
+      <div style="display: flex; gap: 32px; align-items: flex-end;">
+        <!-- Barangay Secretary Box -->
+        <div class="signatory-box" style="text-align: center;">
+          <div style="font-family: 'Brush Script MT', cursive, serif; font-size: 18pt; color: #0f172a; margin-bottom: -12px;">
+            {{ barangay_info.BarangaySecretary|default:"Elena V. Reyes" }}
+          </div>
+          <div class="signature-line" style="font-weight: bold; border-top: 1px solid #0f172a; padding-top: 4px; min-width: 170px;">
+            {{ barangay_info.BarangaySecretary|upper|default:"HON. ELENA V. REYES" }}
+          </div>
+          <div style="font-size: 8.5pt; text-transform: uppercase; color: #475569;">
+            Barangay Secretary
+          </div>
+        </div>
+
+        <!-- Punong Barangay Digital Signature Box -->
+        <div class="signatory-box" style="text-align: center;">
+          <div style="font-family: 'Brush Script MT', cursive, serif; font-size: 20pt; color: #0f172a; margin-bottom: -15px;">
+            {{ barangay_info.PunongBarangay|default:"Ferdinand D. Morales" }}
+          </div>
+          <div class="signature-line" style="font-weight: bold; border-top: 1px solid #0f172a; padding-top: 4px; min-width: 200px;">
+            {{ barangay_info.PunongBarangay|upper|default:"HON. FERDINAND D. MORALES" }}
+          </div>
+          <div style="font-size: 9pt; text-transform: uppercase; font-weight: bold; color: #0284c7;">
+            Punong Barangay
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Official Seal Stamp Watermark Effect -->
+    <div style="margin-top: 40px; text-align: center; font-size: 8pt; color: #94a3b8; border-top: 1px dashed #cbd5e1; padding-top: 6px;">
+      Notice: This document contains secure anti-tamper QR hash verification under the Barangay Information Management System. Any alteration invalidates this clearance.
+    </div>
+  </div>
+
+  <script>
+    function openEditLetterModal() {
+      const modal = document.getElementById('editLetterModal');
+      if (modal) modal.style.display = 'flex';
+    }
+    function closeEditLetterModal() {
+      const modal = document.getElementById('editLetterModal');
+      if (modal) modal.style.display = 'none';
+    }
+    document.addEventListener("DOMContentLoaded", function () {
+      lucide.createIcons();
+    });
+  </script>
+</body>
+</html>

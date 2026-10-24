@@ -1,0 +1,170 @@
+{% extends 'bims/base.html' %}
+
+{% block page_title %}Medicine Inventory & Dispensary Tracking{% endblock %}
+{% block page_icon %}<i data-lucide="pill"></i>{% endblock %}
+
+{% block content %}
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+  <!-- Stocks and Recent Distributions -->
+  <div style="display: flex; flex-direction: column; gap: 24px;">
+    <!-- Inventory Cards -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <i data-lucide="boxes"></i>
+          <span>Current Pharmacy & Medical Supply Stock</span>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="custom-table">
+          <thead>
+            <tr>
+              <th>Medicine Name</th>
+              <th>Unit / Form</th>
+              <th>Available Stock</th>
+              <th>Stock Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in medicines %}
+              <tr>
+                <td><strong>{{ m.MedicineName }}</strong></td>
+                <td>{{ m.Unit }}</td>
+                <td><strong style="font-size: 1.05rem;">{{ m.CurrentStock }}</strong></td>
+                <td>
+                  {% if m.CurrentStock > 50 %}
+                    <span class="badge" style="background: #dcfce7; color: #15803d;">Adequate Supply</span>
+                  {% elif m.CurrentStock > 0 %}
+                    <span class="badge" style="background: #fef3c7; color: #b45309;">Low Stock</span>
+                  {% else %}
+                    <span class="badge" style="background: #fee2e2; color: #b91c1c;">Out of Stock</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No medicines in inventory.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Distribution Log -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <i data-lucide="history"></i>
+          <span>Recent Dispensary Logs</span>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="custom-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Medicine</th>
+              <th>Quantity</th>
+              <th>Resident Recipient</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in distributions %}
+              <tr>
+                <td>{{ d.DistributionDate|date:"M d, Y - h:i A" }}</td>
+                <td><strong>{{ d.MedicineID.MedicineName }}</strong></td>
+                <td>{{ d.QuantityGiven }} {{ d.MedicineID.Unit }}</td>
+                <td>{{ d.ResidentID.full_name }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No distributions recorded.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Forms Column: Dispense & Add Medicine -->
+  <div style="display: flex; flex-direction: column; gap: 24px;">
+    <!-- Dispense Medicine Form -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <i data-lucide="send"></i>
+          <span>Dispense to Resident</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <form method="POST">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="distribute">
+          <div class="form-group">
+            <label class="form-label">Select Medicine *</label>
+            <select name="MedicineID" class="form-control" required>
+              <option value="">Choose medicine</option>
+              {% for m in medicines %}
+                <option value="{{ m.MedicineID }}" {% if m.CurrentStock <= 0 %}disabled{% endif %}>
+                  {{ m.MedicineName }} ({{ m.CurrentStock }} {{ m.Unit }} available)
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Recipient Resident *</label>
+            <select name="ResidentID" class="form-control" required>
+              <option value="">Choose resident</option>
+              {% for r in residents %}
+                <option value="{{ r.ResidentID }}">{{ r.full_name }} ({{ r.HouseholdID.HouseholdNumber }})</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Quantity to Dispense *</label>
+            <input type="number" name="QuantityGiven" min="1" class="form-control" value="1" required>
+          </div>
+
+          <button type="submit" class="btn btn-emerald" style="width: 100%;">
+            <i data-lucide="check" style="width: 16px; height: 16px;"></i> Dispense Medicine
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Restock / Add Medicine Form -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <i data-lucide="plus-circle"></i>
+          <span>Add New Medicine Stock</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <form method="POST">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="add_medicine">
+          <div class="form-group">
+            <label class="form-label">Medicine / Item Name *</label>
+            <input type="text" name="MedicineName" class="form-control" required placeholder="e.g. Paracetamol 500mg">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Unit Type *</label>
+            <input type="text" name="Unit" class="form-control" required placeholder="e.g. tablets, capsules, bottles">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Initial Stock Count *</label>
+            <input type="number" name="CurrentStock" class="form-control" value="100" min="0" required>
+          </div>
+
+          <button type="submit" class="btn btn-secondary" style="width: 100%;">
+            <i data-lucide="plus" style="width: 16px; height: 16px;"></i> Add to Inventory
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

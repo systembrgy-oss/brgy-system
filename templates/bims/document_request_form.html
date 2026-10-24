@@ -1,0 +1,107 @@
+{% extends 'bims/base.html' %}
+
+{% block page_title %}Apply for Barangay Document / Clearance{% endblock %}
+{% block page_icon %}<i data-lucide="file-plus"></i>{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'documents_list' %}" class="btn btn-secondary btn-sm">
+    <i data-lucide="arrow-left" style="width: 14px; height: 14px;"></i>
+    <span x-text="lang === 'fil' ? 'Bumalik sa Listahan' : 'Back to Documents'">Back to Documents</span>
+  </a>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <i data-lucide="file-badge" class="text-[#0B5CAD]"></i>
+        <span x-text="lang === 'fil' ? 'Form ng Kahilingan sa Dokumento' : 'Document Application Form'">Document Application Form</span>
+      </div>
+    </div>
+    
+    <div class="card-body">
+      <form method="POST" enctype="multipart/form-data" class="space-y-5">
+        {% csrf_token %}
+
+        {% if role_name in 'Admin,Staff' %}
+          <div>
+            <label class="form-label block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+              <span x-text="lang === 'fil' ? 'Pangalan ng Residente / Aplikante *' : 'Resident Applicant *'">Resident Applicant *</span>
+            </label>
+            <select name="ResidentID" class="form-control w-full min-h-[44px]" required>
+              <option value="">-- Select Resident Profile --</option>
+              {% for r in residents %}
+                <option value="{{ r.ResidentID }}" {% if request.GET.resident == r.ResidentID|stringformat:"s" %}selected{% endif %}>
+                  {{ r.full_name }} ({{ r.HouseholdID.HouseholdNumber }} - {{ r.HouseholdID.PurokID.PurokName }})
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+        {% endif %}
+
+        <div>
+          <label class="form-label block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+            <span x-text="lang === 'fil' ? 'Uri ng Sertipiko / Clearance *' : 'Type of Clearance / Certificate *'">Type of Clearance / Certificate *</span>
+          </label>
+          <select name="DocumentTypeID" id="docTypeSelect" class="form-control w-full min-h-[44px]" required>
+            <option value="">-- Choose Certificate Type --</option>
+            {% for dt in doc_types %}
+              <option value="{{ dt.DocumentTypeID }}" data-fee="{{ dt.StandardFee }}">
+                {{ dt.DocumentTypeName }} (₱{{ dt.StandardFee|floatformat:2 }})
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="form-label block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+            <span x-text="lang === 'fil' ? 'Layunin o Dahilan ng Aplikasyon *' : 'Specific Purpose of Application *'">Specific Purpose of Application *</span>
+          </label>
+          <textarea name="Purpose" class="form-control w-full text-sm" rows="3" required placeholder="Specify exact purpose (e.g. Local Employment, Scholarship, Postal ID, Bank Account opening)..."></textarea>
+          <span class="text-[11px] text-slate-400 mt-1 block">This purpose will be printed directly onto your official barangay certificate.</span>
+        </div>
+
+        <div>
+          <label class="form-label block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+            <span>Supporting Letter or Endorsement Docs (Optional)</span>
+          </label>
+          <input type="file" name="AttachmentFile" class="form-control w-full min-h-[44px] text-xs pt-2.5" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+          <span class="text-[11px] text-slate-400 mt-1 block">Upload endorsement letter, employer request letter, or valid ID.</span>
+        </div>
+
+        <!-- Dynamic Fee Card -->
+        <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 flex items-center justify-between">
+          <span class="text-xs font-semibold text-slate-600" x-text="lang === 'fil' ? 'Opisyal na Bayarin (Standard Fee):' : 'Official Document Standard Fee:'">
+            Official Document Standard Fee:
+          </span>
+          <strong id="feeDisplay" class="text-lg font-black text-slate-900">₱0.00</strong>
+        </div>
+
+        <!-- PRIMARY ACTION FIRST -->
+        <div class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 pt-4 border-t border-slate-200">
+          <button type="submit" class="btn btn-primary min-h-[44px] px-6 font-bold">
+            <i data-lucide="send" style="width: 16px; height: 16px;"></i>
+            <span x-text="lang === 'fil' ? 'Isumite ang Kahilingan' : 'Submit Clearance Request'">Submit Clearance Request</span>
+          </button>
+          <a href="{% url 'documents_list' %}" class="btn btn-secondary min-h-[44px]" x-text="lang === 'fil' ? 'Kanselahin' : 'Cancel'">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const docSelect = document.getElementById('docTypeSelect');
+  const feeDisplay = document.getElementById('feeDisplay');
+  if (docSelect) {
+    docSelect.addEventListener('change', function() {
+      const selected = this.options[this.selectedIndex];
+      const fee = selected.getAttribute('data-fee') || '0.00';
+      feeDisplay.textContent = '₱' + parseFloat(fee).toFixed(2);
+    });
+  }
+</script>
+{% endblock %}

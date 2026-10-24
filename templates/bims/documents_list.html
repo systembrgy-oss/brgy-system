@@ -1,0 +1,212 @@
+{% extends 'bims/base.html' %}
+
+{% block page_title %}Paperless Document Issuance & Clearances{% endblock %}
+{% block page_icon %}<i data-lucide="file-check-2"></i>{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'document_request_create' %}" class="btn btn-primary btn-sm min-h-[40px] px-4 font-bold">
+    <i data-lucide="file-plus" style="width: 16px; height: 16px;"></i>
+    <span x-text="lang === 'fil' ? 'Bagong Kahilingan' : 'Request Clearance'">Request Clearance</span>
+  </a>
+{% endblock %}
+
+{% block content %}
+<!-- Standard Status Filter Dropdown -->
+{% if role_name in 'Admin,Staff' %}
+  <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+    <div class="flex items-center gap-2.5">
+      <label for="statusFilterSelect" class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Status Filter:</label>
+      <div class="relative">
+        <select id="statusFilterSelect" onchange="window.location.href=this.value" class="form-control text-xs font-semibold min-h-[38px] bg-white border-slate-300 rounded-lg cursor-pointer pr-8 shadow-xs">
+          <option value="{% url 'documents_list' %}" {% if not request.GET.status %}selected{% endif %}>All Requests</option>
+          <option value="{% url 'documents_list' %}?status=Pending" {% if request.GET.status == 'Pending' %}selected{% endif %}>Pending Review</option>
+          <option value="{% url 'documents_list' %}?status=Approved" {% if request.GET.status == 'Approved' %}selected{% endif %}>Approved</option>
+          <option value="{% url 'documents_list' %}?status=Released" {% if request.GET.status == 'Released' %}selected{% endif %}>Released</option>
+          <option value="{% url 'documents_list' %}?status=Rejected" {% if request.GET.status == 'Rejected' %}selected{% endif %}>Rejected</option>
+        </select>
+      </div>
+    </div>
+    <span class="text-xs text-slate-500 font-semibold">{{ requests.count }} Application{{ requests.count|pluralize }}</span>
+  </div>
+{% endif %}
+
+<!-- Desktop View: Data Table -->
+<div class="card hidden md:block">
+  <div class="card-header">
+    <div class="card-title">
+      <i data-lucide="inbox" class="text-[#0B5CAD]"></i>
+      <span x-text="lang === 'fil' ? 'Talaan ng mga Dokumento' : 'Document Applications Queue'">Document Applications Queue</span>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="custom-table">
+      <thead>
+        <tr>
+          <th>Control / QR Hash</th>
+          <th>Applicant</th>
+          <th>Document</th>
+          <th>Purpose</th>
+          <th>Fee / Official Receipt</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for req in requests %}
+          <tr id="req-{{ req.RequestID }}" data-highlight-id="{{ req.RequestID }}">
+            <td>
+              <code class="text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-800 font-bold">{{ req.QRCodeHash }}</code>
+              <div class="text-[11px] text-slate-400 mt-0.5">{{ req.RequestDate|date:"M d, Y - h:i A" }}</div>
+            </td>
+            <td>
+              <strong class="text-slate-900">{{ req.ResidentID.full_name }}</strong>
+              <div class="text-[11px] text-slate-500">{{ req.ResidentID.HouseholdID.PurokID.PurokName }}</div>
+            </td>
+            <td><strong class="text-[#0B5CAD]">{{ req.DocumentTypeID.DocumentTypeName }}</strong></td>
+            <td><span class="text-xs text-slate-600">{{ req.Purpose|truncatechars:40 }}</span></td>
+            <td>
+              <span class="font-bold text-xs">₱{{ req.DocumentTypeID.StandardFee|floatformat:2 }}</span>
+              {% if req.PaymentID %}
+                <div class="text-[11px] text-emerald-600 font-semibold">Paid: OR #{{ req.PaymentID.OfficialReceiptNo }}</div>
+              {% else %}
+                <div class="text-[11px] text-amber-600 font-semibold">Unpaid</div>
+              {% endif %}
+            </td>
+            <td>
+              {% if req.RequestStatus == 'Approved' or req.RequestStatus == 'Released' %}
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800 border border-green-200">
+                  <i data-lucide="check" style="width: 12px; height: 12px;"></i> {{ req.RequestStatus }}
+                </span>
+              {% elif req.RequestStatus == 'Pending' %}
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                  <i data-lucide="clock" style="width: 12px; height: 12px;"></i> Pending
+                </span>
+              {% else %}
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-200">
+                  <i data-lucide="x" style="width: 12px; height: 12px;"></i> {{ req.RequestStatus }}
+                </span>
+              {% endif %}
+            </td>
+            <td class="text-right">
+              <div class="relative inline-block text-left" x-data="actionMenu()" @close-all-action-menus.window="close()">
+                <button type="button"
+                        @click="toggle($event)"
+                        class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition border border-transparent hover:border-slate-200"
+                        title="Actions">
+                  <i data-lucide="more-vertical" style="width: 16px; height: 16px;"></i>
+                </button>
+                <template x-teleport="body">
+                  <div x-show="open"
+                       x-cloak
+                       @click.away="close()"
+                       @keydown.escape.window="close()"
+                       :style="coords"
+                       class="fixed z-[99999] w-48 bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 overflow-hidden transform transition-all text-left"
+                       x-transition:enter="transition ease-out duration-100"
+                       x-transition:enter-start="opacity-0 scale-95"
+                       x-transition:enter-end="opacity-100 scale-100">
+                    {% if role_name in 'Admin,Staff' and req.RequestStatus == 'Pending' %}
+                      <a href="{% url 'document_process' req.RequestID %}"
+                         @click="close()"
+                         class="w-full text-left px-3.5 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 flex items-center gap-2">
+                        <i data-lucide="check-square" class="w-3.5 h-3.5 text-emerald-500"></i>
+                        <span>Process Request</span>
+                      </a>
+                    {% endif %}
+
+                    {% if req.RequestStatus in 'Approved,Released' %}
+                      <a href="{% url 'document_view' req.RequestID %}"
+                         @click="close()"
+                         target="_blank"
+                         class="w-full text-left px-3.5 py-2 text-xs font-semibold text-[#0B5CAD] hover:bg-sky-50 flex items-center gap-2">
+                        <i data-lucide="printer" class="w-3.5 h-3.5 text-[#0B5CAD]"></i>
+                        <span>Print Certificate</span>
+                      </a>
+                    {% endif %}
+
+                    {% if role_name in 'Admin,Staff' %}
+                      <a href="{% url 'document_process' req.RequestID %}"
+                         @click="close()"
+                         class="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                        <i data-lucide="edit-3" class="w-3.5 h-3.5 text-slate-400"></i>
+                        <span>View / Edit Details</span>
+                      </a>
+                    {% endif %}
+
+                    {% if req.AttachmentFile %}
+                      <a href="{{ req.AttachmentFile.url }}"
+                         @click="close()"
+                         target="_blank"
+                         class="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                        <i data-lucide="paperclip" class="w-3.5 h-3.5 text-slate-400"></i>
+                        <span>View Attachment</span>
+                      </a>
+                    {% endif %}
+                  </div>
+                </template>
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="7" class="text-center text-slate-400 py-10 text-xs">
+              No document requests found in this queue.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Mobile View: Clean Card Feed with 44px tap targets -->
+<div class="md:hidden space-y-4">
+  {% for req in requests %}
+    <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+        <strong class="text-sm font-bold text-slate-900">{{ req.DocumentTypeID.DocumentTypeName }}</strong>
+        {% if req.RequestStatus == 'Approved' or req.RequestStatus == 'Released' %}
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-green-100 text-green-800">
+            <i data-lucide="check" style="width: 10px; height: 10px;"></i> {{ req.RequestStatus }}
+          </span>
+        {% elif req.RequestStatus == 'Pending' %}
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">
+            <i data-lucide="clock" style="width: 10px; height: 10px;"></i> Pending
+          </span>
+        {% else %}
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-800">
+            {{ req.RequestStatus }}
+          </span>
+        {% endif %}
+      </div>
+
+      <div class="text-xs space-y-1 text-slate-600">
+        <div><strong>Applicant:</strong> {{ req.ResidentID.full_name }}</div>
+        <div><strong>Purpose:</strong> {{ req.Purpose }}</div>
+        <div><strong>QR Hash:</strong> <code class="bg-slate-100 px-1 py-0.5 rounded">{{ req.QRCodeHash }}</code></div>
+        <div class="text-[11px] text-slate-400">{{ req.RequestDate|date:"M d, Y - h:i A" }}</div>
+      </div>
+
+      <!-- Action Button Area (44px min tap targets) -->
+      <div class="pt-2 border-t border-slate-100 flex gap-2">
+        {% if role_name in 'Admin,Staff' and req.RequestStatus == 'Pending' %}
+          <a href="{% url 'document_process' req.RequestID %}" class="btn btn-emerald btn-sm flex-1 min-h-[44px]">
+            <i data-lucide="check-square" style="width: 14px; height: 14px;"></i> Process & Approve
+          </a>
+        {% endif %}
+
+        {% if req.RequestStatus in 'Approved,Released' %}
+          <a href="{% url 'document_view' req.RequestID %}" class="btn btn-primary btn-sm flex-1 min-h-[44px]" target="_blank">
+            <i data-lucide="printer" style="width: 14px; height: 14px;"></i> View & Print Certificate
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  {% empty %}
+    <div class="bg-white border border-slate-200 rounded-xl p-8 text-center text-xs text-slate-400">
+      <i data-lucide="file-x" class="mx-auto mb-2 text-slate-300" style="width: 28px; height: 28px;"></i>
+      No document applications found.
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

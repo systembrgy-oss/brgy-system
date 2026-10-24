@@ -1,0 +1,100 @@
+{% extends 'bims/base.html' %}
+
+{% block page_title %}Bulk Census & Resident Ingestion (CSV / Excel){% endblock %}
+{% block page_icon %}<i data-lucide="file-spreadsheet"></i>{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'residents_list' %}" class="btn btn-secondary btn-sm">
+    <i data-lucide="arrow-left" style="width: 15px; height: 15px;"></i>
+    <span>Back to Registry</span>
+  </a>
+  <a href="{% url 'census_sample_csv' %}" class="btn btn-emerald btn-sm">
+    <i data-lucide="download" style="width: 15px; height: 15px;"></i>
+    <span>Download Sample CSV Template</span>
+  </a>
+{% endblock %}
+
+{% block content %}
+<div style="display: grid; grid-template-columns: 1.6fr 1fr; gap: 24px;">
+  <!-- Upload Card -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <i data-lucide="upload-cloud"></i>
+        <span>Upload Census Spreadsheet</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 20px;">
+        Upload a pre-formatted <code>.csv</code> spreadsheet containing your resident and household demographic census. The engine will automatically match or create Puroks, Households, Resident demographics, and Sector classifications.
+      </p>
+
+      <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div style="border: 2px dashed #cbd5e1; border-radius: var(--radius-lg); padding: 36px 20px; text-align: center; background: #f8fafc; margin-bottom: 24px; transition: border-color 0.2s ease;">
+          <i data-lucide="sheet" style="width: 48px; height: 48px; color: var(--primary); margin-bottom: 12px;"></i>
+          <h4 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 4px;">Choose your Census CSV File</h4>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 16px;">Compatible with Microsoft Excel, Google Sheets, or LibreOffice Calc (Export as .CSV)</p>
+          
+          <input type="file" name="csv_file" accept=".csv" required id="csvFileInput" style="display: none;" onchange="updateFileName(this)">
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('csvFileInput').click()">
+            <i data-lucide="folder-search" style="width: 16px; height: 16px;"></i> Browse File
+          </button>
+          <div id="selectedFileName" style="margin-top: 10px; font-weight: 600; font-size: 0.85rem; color: var(--emerald);"></div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 12px;">
+          <a href="{% url 'residents_list' %}" class="btn btn-secondary">Cancel</a>
+          <button type="submit" class="btn btn-primary">
+            <i data-lucide="upload" style="width: 16px; height: 16px;"></i>
+            <span>Start Bulk Ingestion</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Instruction & Column Guide Card -->
+  <div style="display: flex; flex-direction: column; gap: 20px;">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <i data-lucide="help-circle"></i>
+          <span>Required Column Mapping</span>
+        </div>
+      </div>
+      <div class="card-body" style="font-size: 0.8rem;">
+        <ul style="list-style-type: none; padding: 0; display: flex; flex-direction: column; gap: 8px;">
+          <li><code style="color: var(--primary); font-weight: bold;">HouseholdNumber</code>: Unique ID (e.g. HH-2026-050)</li>
+          <li><code style="color: var(--primary); font-weight: bold;">PurokName</code>: Purok / Zone label</li>
+          <li><code style="color: var(--primary); font-weight: bold;">StreetAddress</code>: Street / Block / Lot</li>
+          <li><code style="color: var(--primary); font-weight: bold;">FirstName</code> & <code style="color: var(--primary); font-weight: bold;">LastName</code>: Full name</li>
+          <li><code style="color: var(--primary); font-weight: bold;">BirthDate</code>: Format <code>YYYY-MM-DD</code> (e.g. 1985-06-12)</li>
+          <li><code style="color: var(--primary); font-weight: bold;">Sex</code>: Male or Female</li>
+          <li><code style="color: var(--primary); font-weight: bold;">CivilStatus</code>: Single, Married, Widowed, etc.</li>
+          <li><code style="color: var(--primary); font-weight: bold;">IsVoter</code>: 1 for Yes, 0 for No</li>
+          <li><code style="color: var(--primary); font-weight: bold;">Sectors</code>: Semicolon-separated tags (e.g. <code>Senior Citizen; 4Ps Beneficiary</code>)</li>
+        </ul>
+
+        <div style="margin-top: 16px; padding: 12px; background: #e0f2fe; border-radius: var(--radius-md); color: #0369a1; font-size: 0.76rem; line-height: 1.5;">
+          <i data-lucide="lightbulb" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle;"></i>
+          <strong>Tip:</strong> Households with the same <code>HouseholdNumber</code> will automatically group residents under the same family unit.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function updateFileName(input) {
+    const display = document.getElementById('selectedFileName');
+    if (input.files && input.files[0]) {
+      display.textContent = 'Selected: ' + input.files[0].name;
+    } else {
+      display.textContent = '';
+    }
+  }
+</script>
+{% endblock %}

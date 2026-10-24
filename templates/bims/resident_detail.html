@@ -1,0 +1,201 @@
+{% extends 'bims/base.html' %}
+
+{% block page_title %}Resident Profile: {{ resident.full_name }}{% endblock %}
+{% block page_icon %}<i data-lucide="user"></i>{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'residents_list' %}" class="btn btn-secondary btn-sm min-h-[40px] px-3 font-semibold">
+    <i data-lucide="arrow-left" style="width: 15px; height: 15px;"></i>
+    <span>Back</span>
+  </a>
+  {% if request.user.RoleID.RoleName in 'Admin,Staff' %}
+    <a href="{% url 'resident_edit' resident.ResidentID %}" class="btn btn-primary btn-sm min-h-[40px] px-3 font-semibold">
+      <i data-lucide="edit-3" style="width: 15px; height: 15px;"></i>
+      <span>Edit Citizen Profile</span>
+    </a>
+    <a href="{% url 'document_request_create' %}?resident={{ resident.ResidentID }}" class="btn btn-emerald btn-sm min-h-[40px] px-3 font-semibold">
+      <i data-lucide="file-plus" style="width: 15px; height: 15px;"></i>
+      <span>Issue Clearance</span>
+    </a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<div style="display: grid; grid-template-columns: 1fr 2fr; gap: 24px;">
+  <!-- Demographics Card -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <i data-lucide="id-card"></i>
+        <span>Demographic Summary</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <div style="width: 72px; height: 72px; border-radius: 50%; background: #0284c715; color: var(--primary); display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-size: 1.75rem; font-weight: 800;">
+          {{ resident.FirstName|first }}{{ resident.LastName|first }}
+        </div>
+        <h3 style="font-size: 1.2rem; font-weight: 700;">{{ resident.full_name }}</h3>
+        <p style="font-size: 0.8rem; color: var(--text-muted);">Resident ID: #{{ resident.ResidentID }}</p>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px; font-size: 0.88rem;">
+        <div><strong>Sex / Age:</strong> {{ resident.Sex }} / {{ resident.age }} years old</div>
+        <div><strong>Date of Birth:</strong> {{ resident.BirthDate|date:"F d, Y" }}</div>
+        <div><strong>Civil Status:</strong> {{ resident.CivilStatus }}</div>
+        <div><strong>Employment:</strong> {{ resident.EmploymentStatus }}</div>
+        <div><strong>Contact:</strong> {{ resident.ContactNo|default:"N/A" }}</div>
+        <div><strong>Voter Status:</strong> 
+          {% if resident.IsVoter %}
+            <span class="badge badge-approved">Registered Voter</span>
+          {% else %}
+            <span class="badge badge-rejected">Non-Voter</span>
+          {% endif %}
+        </div>
+        <div style="border-top: 1px solid var(--surface-border); padding-top: 12px;">
+          <strong>Purok / Zone:</strong> {{ resident.HouseholdID.PurokID.PurokName }} (Zone {{ resident.HouseholdID.PurokID.ZoneNo }})
+        </div>
+        <div><strong>Street Address:</strong> {{ resident.HouseholdID.StreetAddress }}</div>
+        <div><strong>Household No:</strong> {{ resident.HouseholdID.HouseholdNumber }}</div>
+        <div><strong>Role in Household:</strong> {{ resident.RelationshipToHead }}</div>
+      </div>
+
+      <div style="margin-top: 20px; border-top: 1px solid var(--surface-border); padding-top: 14px;">
+        <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px;">
+          Sector Classifications
+        </div>
+        {% for s in sectors %}
+          <span class="sector-tag 
+            {% if s.SectorID.SectorName == 'Senior Citizen' %}senior
+            {% elif s.SectorID.SectorName == 'PWD' %}pwd
+            {% elif s.SectorID.SectorName == 'Solo Parent' %}solo
+            {% elif s.SectorID.SectorName == '4Ps Beneficiary' %}fourps{% endif %}">
+            {{ s.SectorID.SectorName }}
+          </span>
+        {% empty %}
+          <span style="font-size: 0.8rem; color: var(--text-light);">No sector tags assigned</span>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Operational Tabs / History -->
+  <div style="display: flex; flex-direction: column; gap: 20px;">
+    <!-- Document Requests History -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <i data-lucide="file-text"></i>
+          <span>Issued Documents & Clearances</span>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="custom-table">
+          <thead>
+            <tr>
+              <th>Document</th>
+              <th>Date Requested</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for req in requests %}
+              <tr>
+                <td>
+                  <strong>{{ req.DocumentTypeID.DocumentTypeName }}</strong>
+                  <div style="font-size: 0.75rem; color: var(--text-muted);">Purpose: {{ req.Purpose }}</div>
+                </td>
+                <td>{{ req.RequestDate|date:"M d, Y" }}</td>
+                <td><span class="badge badge-{{ req.RequestStatus|lower }}">{{ req.RequestStatus }}</span></td>
+                <td>
+                  {% if req.RequestStatus in 'Approved,Released' %}
+                    <a href="{% url 'document_view' req.RequestID %}" class="btn btn-secondary btn-sm" target="_blank">
+                      <i data-lucide="printer" style="width: 14px; height: 14px;"></i> Print PDF
+                    </a>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No clearance history found.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Health & Social Aid History -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <i data-lucide="hand-heart"></i>
+          <span>Financial Aid & Health Center Records</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px;">
+          <div>
+            <h4 style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">ASSISTANCE RECEIVED</h4>
+            {% for aid in assistances %}
+              <div style="padding: 8px 12px; background: #f8fafc; border-radius: var(--radius-sm); margin-bottom: 6px; font-size: 0.82rem; border-left: 3px solid var(--emerald);">
+                <strong>{{ aid.ProgramID.ProgramName }}</strong>
+                <div>{{ aid.QuantityOrAmountGiven }} ({{ aid.ReceivedDate|date:"M d, Y" }})</div>
+              </div>
+            {% empty %}
+              <p style="font-size: 0.8rem; color: var(--text-light);">No assistance logged.</p>
+            {% endfor %}
+          </div>
+
+          <div>
+            <h4 style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted); margin-bottom: 8px;">HEALTH CLINIC LOGS</h4>
+            {% for h in health_records %}
+              <div style="padding: 8px 12px; background: #f8fafc; border-radius: var(--radius-sm); margin-bottom: 6px; font-size: 0.82rem; border-left: 3px solid var(--primary);">
+                <strong>{{ h.RecordType }}</strong> ({{ h.RecordDate|date:"M d, Y" }})
+                <div>{{ h.Details }}</div>
+              </div>
+            {% empty %}
+              <p style="font-size: 0.8rem; color: var(--text-light);">No health records logged.</p>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Blotter Records (Confidential check) -->
+    {% if request.user.RoleID.RoleName in 'Admin,Staff' or request.user.ResidentID == resident %}
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <i data-lucide="scale"></i>
+          <span>Blotter / Katarungang Pambarangay Cases</span>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="custom-table">
+          <thead>
+            <tr>
+              <th>Case #</th>
+              <th>Respondent</th>
+              <th>Details</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for inc in incidents %}
+              <tr>
+                <td>Case #{{ inc.IncidentID }}</td>
+                <td><strong>{{ inc.RespondentName }}</strong></td>
+                <td>{{ inc.IncidentDetails|truncatechars:50 }}</td>
+                <td><span class="badge badge-{{ inc.CaseStatus|slugify }}">{{ inc.CaseStatus }}</span></td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No blotter cases recorded for this resident.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

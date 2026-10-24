@@ -1,0 +1,239 @@
+{% extends 'bims/base.html' %}
+
+{% block page_title %}Household Mapping & Puroks{% endblock %}
+{% block page_icon %}<i data-lucide="home"></i>{% endblock %}
+
+{% block page_actions %}
+  <button type="button" @click="showPurokModal = true" class="btn btn-secondary btn-sm min-h-[40px] px-3 font-semibold">
+    <i data-lucide="map-pin" style="width: 15px; height: 15px;"></i>
+    <span>+ New Purok / Zone</span>
+  </button>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6"
+     x-data="{
+       showPurokModal: false,
+       showEditPurokModal: false,
+       editPurokId: '',
+       editPurokName: '',
+       editZoneNo: ''
+     }">
+  <!-- Household Table (8 cols on lg) -->
+  <div class="lg:col-span-8 card">
+    <div class="card-header flex items-center justify-between">
+      <div class="card-title">
+        <i data-lucide="map-pin" class="text-[#0B5CAD]"></i>
+        <span>Registered Households</span>
+      </div>
+      <span class="text-xs text-slate-500 font-semibold">{{ households.count }} Total Households</span>
+    </div>
+    <div class="table-responsive">
+      <table class="custom-table">
+        <thead>
+          <tr>
+            <th>Household No.</th>
+            <th>Purok / Zone</th>
+            <th>Street Address</th>
+            <th>Members</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for h in households %}
+            <tr>
+              <td><strong class="text-[#0B5CAD] font-mono">{{ h.HouseholdNumber }}</strong></td>
+              <td>
+                <span class="badge" style="background: #e0f2fe; color: #0369a1; font-weight: 600;">
+                  {{ h.PurokID.PurokName }} (Zone {{ h.PurokID.ZoneNo }})
+                </span>
+              </td>
+              <td class="text-xs text-slate-700">{{ h.StreetAddress }}</td>
+              <td>
+                <span class="badge" style="background: #dcfce7; color: #15803d; font-weight: 700;">
+                  {{ h.resident_count }} Resident{{ h.resident_count|pluralize }}
+                </span>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 30px;">No households registered yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Create Household Form (4 cols on lg) -->
+  <div class="lg:col-span-4 space-y-6">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <i data-lucide="plus-circle" class="text-[#0B5CAD]"></i>
+          <span>Map New Household</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <form method="POST" class="space-y-4">
+          {% csrf_token %}
+          <input type="hidden" name="action_type" value="create_household">
+
+          <div class="form-group mb-0">
+            <div class="flex items-center justify-between mb-1">
+              <label class="form-label text-xs font-semibold text-slate-700 uppercase tracking-wider mb-0">Household Number *</label>
+              <span class="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">Auto-Sequenced</span>
+            </div>
+            <input type="text" name="HouseholdNumber" class="form-control font-mono font-bold text-slate-900" required value="{{ next_hh_no }}" placeholder="e.g. HH-2026-004">
+            <span class="text-[11px] text-slate-400 mt-1 block">Sequenced in order automatically. You can edit if needed.</span>
+          </div>
+
+          <div class="form-group mb-0">
+            <div class="flex items-center justify-between mb-1">
+              <label class="form-label text-xs font-semibold text-slate-700 uppercase tracking-wider mb-0">Purok / Zone Assignment *</label>
+              <button type="button" @click="showPurokModal = true" class="text-[11px] text-[#0b5cad] hover:underline font-semibold">+ Add Purok</button>
+            </div>
+            <select name="PurokID" class="form-control min-h-[44px]" required>
+              <option value="">-- Choose Purok / Zone --</option>
+              {% for p in puroks %}
+                <option value="{{ p.PurokID }}">{{ p.PurokName }} (Zone {{ p.ZoneNo }})</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-group mb-0">
+            <label class="form-label text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Street Address / Compound *</label>
+            <input type="text" name="StreetAddress" class="form-control min-h-[44px]" required placeholder="e.g. 14 Mabini Extension">
+          </div>
+
+          <!-- PRIMARY ACTION FIRST per standards -->
+          <button type="submit" class="btn btn-primary w-full min-h-[44px] font-bold mt-2">
+            <i data-lucide="save" style="width: 16px; height: 16px;"></i>
+            <span>Save Household</span>
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Active Purok Directory Card with Edit Option -->
+    <div class="card">
+      <div class="card-header flex items-center justify-between">
+        <div class="card-title text-xs font-bold text-slate-800">
+          <i data-lucide="layers" class="text-slate-500"></i>
+          <span>Barangay Puroks & Zones</span>
+        </div>
+        <button type="button" @click="showPurokModal = true" class="text-xs font-semibold text-[#0B5CAD] hover:underline">+ Add</button>
+      </div>
+      <div class="p-3 divide-y divide-slate-100 max-h-64 overflow-y-auto text-xs">
+        {% for p in puroks %}
+          <div class="py-2.5 flex items-center justify-between gap-2">
+            <div>
+              <strong class="text-slate-800">{{ p.PurokName }}</strong>
+              <div class="text-[11px] text-slate-400">Zone {{ p.ZoneNo }} • <span class="font-mono">ID: {{ p.PurokID }}</span></div>
+            </div>
+            <button type="button"
+                    @click="editPurokId = '{{ p.PurokID }}'; editPurokName = '{{ p.PurokName|escapejs }}'; editZoneNo = '{{ p.ZoneNo }}'; showEditPurokModal = true;"
+                    class="btn btn-secondary btn-sm px-2.5 py-1 text-xs text-slate-700 hover:text-[#0b5cad] hover:bg-sky-50 flex items-center gap-1">
+              <i data-lucide="edit-3" style="width: 13px; height: 13px;"></i>
+              <span>Edit</span>
+            </button>
+          </div>
+        {% empty %}
+          <p class="text-slate-400 py-3 text-center">No Puroks created yet.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Accessible Shared Create Purok / Zone Modal -->
+  <div x-cloak x-show="showPurokModal"
+       class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+       @keydown.escape.window="showPurokModal = false"
+       @click.self="showPurokModal = false"
+       role="dialog"
+       aria-modal="true">
+    <div class="w-full max-w-md bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+      <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-sky-100 text-[#0b5cad] flex items-center justify-center">
+            <i data-lucide="map-pin" class="w-4 h-4"></i>
+          </div>
+          <h3 class="text-sm font-bold text-slate-900">Create New Purok / Zone</h3>
+        </div>
+        <button type="button" @click="showPurokModal = false" class="text-xs font-semibold text-slate-400 hover:text-slate-700 px-2 py-1 rounded">Close</button>
+      </div>
+
+      <form method="POST" class="p-5 space-y-4">
+        {% csrf_token %}
+        <input type="hidden" name="action_type" value="create_purok">
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Purok Name *</label>
+          <input type="text" name="PurokName" class="form-control w-full min-h-[44px]" required placeholder="e.g. Purok 7 - Bougainvillea">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Zone Number *</label>
+          <input type="number" name="ZoneNo" class="form-control w-full min-h-[44px]" required placeholder="e.g. 4" min="1">
+          <span class="text-[11px] text-slate-400 mt-1 block">Cluster zone or sector number within the barangay.</span>
+        </div>
+
+        <!-- PRIMARY ACTION FIRST -->
+        <div class="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-2.5">
+          <button type="submit" class="btn btn-primary w-full sm:w-auto font-bold px-5 min-h-[40px]">
+            <span>Save Purok</span>
+          </button>
+          <button type="button" @click="showPurokModal = false" class="btn btn-secondary w-full sm:w-auto min-h-[40px]">
+            <span>Cancel</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Accessible Shared Edit Purok / Zone Modal -->
+  <div x-cloak x-show="showEditPurokModal"
+       class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+       @keydown.escape.window="showEditPurokModal = false"
+       @click.self="showEditPurokModal = false"
+       role="dialog"
+       aria-modal="true">
+    <div class="w-full max-w-md bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+      <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-sky-100 text-[#0b5cad] flex items-center justify-center">
+            <i data-lucide="edit" class="w-4 h-4"></i>
+          </div>
+          <h3 class="text-sm font-bold text-slate-900">Update Purok / Zone</h3>
+        </div>
+        <button type="button" @click="showEditPurokModal = false" class="text-xs font-semibold text-slate-400 hover:text-slate-700 px-2 py-1 rounded">Close</button>
+      </div>
+
+      <form method="POST" class="p-5 space-y-4">
+        {% csrf_token %}
+        <input type="hidden" name="action_type" value="edit_purok">
+        <input type="hidden" name="PurokID" :value="editPurokId">
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Purok Name *</label>
+          <input type="text" name="PurokName" x-model="editPurokName" class="form-control w-full min-h-[44px]" required placeholder="e.g. Purok 1 - Sampaguita">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Zone Number *</label>
+          <input type="number" name="ZoneNo" x-model="editZoneNo" class="form-control w-full min-h-[44px]" required placeholder="e.g. 1" min="1">
+          <span class="text-[11px] text-slate-400 mt-1 block">Cluster zone or sector number within the barangay.</span>
+        </div>
+
+        <!-- PRIMARY ACTION FIRST -->
+        <div class="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-2.5">
+          <button type="submit" class="btn btn-primary w-full sm:w-auto font-bold px-5 min-h-[40px]">
+            <i data-lucide="check" style="width: 15px; height: 15px;"></i>
+            <span>Update Purok</span>
+          </button>
+          <button type="button" @click="showEditPurokModal = false" class="btn btn-secondary w-full sm:w-auto min-h-[40px]">
+            <span>Cancel</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

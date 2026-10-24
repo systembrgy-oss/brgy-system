@@ -1,0 +1,242 @@
+{% extends 'bims/base.html' %}
+
+{% block page_title %}Barangay Health Center & Clinic Logs{% endblock %}
+{% block page_icon %}<i data-lucide="activity"></i>{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6" x-data="{
+  editModal: false,
+  editId: null,
+  editPatient: '',
+  editType: 'General Consultation',
+  editCustomType: '',
+  editDate: '',
+  editDetails: '',
+  openEdit(id, patient, type, date, details) {
+    this.editId = id;
+    this.editPatient = patient;
+    const knownTypes = ['General Consultation', 'Maternal & Prenatal Care', 'Vaccination / Immunization', 'Dental Checkup', 'Child Nutrition & Deworming', 'Senior Wellness', 'First Aid & Wound Dressing', 'Hypertension / Diabetes Check', 'TB-DOTS Consultation'];
+    if (knownTypes.includes(type)) {
+      this.editType = type;
+      this.editCustomType = '';
+    } else {
+      this.editType = 'Other';
+      this.editCustomType = type;
+    }
+    this.editDate = date;
+    this.editDetails = details;
+    this.editModal = true;
+  }
+}">
+  <!-- Health Records List (8 cols) -->
+  <div class="lg:col-span-8 card">
+    <div class="card-header flex items-center justify-between">
+      <div class="card-title">
+        <i data-lucide="clipboard-list" class="text-[#0B5CAD]"></i>
+        <span>Clinical Patient Logs & Consultations</span>
+      </div>
+      <span class="text-xs text-slate-500 font-semibold">{{ records.count }} Consultation{{ records.count|pluralize }}</span>
+    </div>
+    <div class="table-responsive">
+      <table class="custom-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Resident Patient</th>
+            <th>Service / Record Type</th>
+            <th>Clinical Details</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in records %}
+            <tr>
+              <td class="text-xs whitespace-nowrap">{{ r.RecordDate|date:"M d, Y" }}</td>
+              <td>
+                <a href="{% url 'resident_detail' r.ResidentID.ResidentID %}" class="font-bold text-[#0B5CAD] hover:underline text-xs block">
+                  {{ r.ResidentID.full_name }}
+                </a>
+                <span class="text-[11px] text-slate-400 font-mono">{{ r.ResidentID.HouseholdID.HouseholdNumber }}</span>
+              </td>
+              <td>
+                <span class="badge" style="background: #e0f2fe; color: #0369a1; font-weight: 600;">
+                  {{ r.RecordType }}
+                </span>
+              </td>
+              <td class="text-xs text-slate-700 max-w-xs">{{ r.Details|truncatechars:75 }}</td>
+              <td>
+                <div class="flex items-center gap-1.5">
+                  <button type="button"
+                          @click="openEdit({{ r.RecordID }}, '{{ r.ResidentID.full_name|escapejs }}', '{{ r.RecordType|escapejs }}', '{{ r.RecordDate|date:'Y-m-d' }}', '{{ r.Details|escapejs }}')"
+                          class="btn btn-secondary btn-sm p-1.5 text-xs text-slate-600 hover:text-[#0b5cad]"
+                          title="Edit Service Type & Details">
+                    <i data-lucide="edit" style="width: 14px; height: 14px;"></i>
+                    <span class="hidden sm:inline">Edit</span>
+                  </button>
+                  <form method="POST" class="inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="RecordID" value="{{ r.RecordID }}">
+                    <button type="submit"
+                            data-confirm="Delete this health consultation record for {{ r.ResidentID.full_name }}? This action cannot be reversed."
+                            data-confirm-title="Delete Health Record"
+                            data-confirm-btn="Delete Record"
+                            data-cancel-btn="Keep Record"
+                            data-confirm-variant="danger"
+                            class="btn btn-secondary btn-sm p-1.5 text-xs text-red-600 hover:bg-red-50"
+                            title="Delete Record">
+                      <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="5" class="text-center text-slate-400 py-10 text-xs">
+                No clinic, consultation, or vaccination records logged yet.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Record Intake Form (4 cols) -->
+  <div class="lg:col-span-4 card" x-data="{ intakeType: 'General Consultation' }">
+    <div class="card-header">
+      <div class="card-title">
+        <i data-lucide="plus-circle" class="text-[#0B5CAD]"></i>
+        <span>Log Health Consultation</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <form method="POST" class="space-y-4">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create">
+
+        <div class="form-group mb-0">
+          <label class="form-label text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Resident Patient *</label>
+          <select name="ResidentID" class="form-control min-h-[44px]" required>
+            <option value="">-- Choose Resident --</option>
+            {% for r in residents %}
+              <option value="{{ r.ResidentID }}">
+                {{ r.full_name }} ({{ r.HouseholdID.HouseholdNumber }})
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group mb-0">
+          <label class="form-label text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Service / Consultation Type *</label>
+          <select name="RecordType" x-model="intakeType" class="form-control min-h-[44px]" required>
+            <option value="General Consultation">General Consultation / Checkup</option>
+            <option value="Maternal & Prenatal Care">Maternal & Prenatal Care</option>
+            <option value="Vaccination / Immunization">Vaccination / Immunization</option>
+            <option value="Dental Checkup">Dental Checkup & Extraction</option>
+            <option value="Child Nutrition & Deworming">Child Nutrition & Deworming</option>
+            <option value="Senior Wellness">Senior Citizen Wellness</option>
+            <option value="First Aid & Wound Dressing">First Aid & Wound Dressing</option>
+            <option value="Hypertension / Diabetes Check">Hypertension & Diabetes Check</option>
+            <option value="TB-DOTS Consultation">TB-DOTS Consultation</option>
+            <option value="Other">Other (Custom Service Type)</option>
+          </select>
+        </div>
+
+        <!-- Custom Service Type Input -->
+        <div x-show="intakeType === 'Other'" x-cloak class="form-group mb-0">
+          <label class="form-label text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Custom Service Name *</label>
+          <input type="text" name="CustomRecordType" class="form-control min-h-[44px]" placeholder="e.g. Eye Refraction / Optical Exam">
+        </div>
+
+        <div class="form-group mb-0">
+          <label class="form-label text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Consultation Date *</label>
+          <input type="date" name="RecordDate" class="form-control min-h-[44px]" required value="{% now 'Y-m-d' %}">
+        </div>
+
+        <div class="form-group mb-0">
+          <label class="form-label text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Diagnosis / Vitals / Details *</label>
+          <textarea name="Details" class="form-control text-xs" rows="4" required placeholder="Vital signs (BP, Temp, Weight), diagnosis, administered vaccines, or prescribed medications..."></textarea>
+        </div>
+
+        <!-- PRIMARY ACTION FIRST -->
+        <button type="submit" class="btn btn-primary w-full min-h-[44px] font-bold mt-2">
+          <i data-lucide="save" style="width: 16px; height: 16px;"></i>
+          <span>Save Health Record</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Health Record Modal -->
+  <div x-cloak x-show="editModal"
+       class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+       @keydown.escape.window="editModal = false"
+       @click.self="editModal = false"
+       role="dialog"
+       aria-modal="true">
+    <div class="w-full max-w-md bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+      <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-sky-100 text-[#0b5cad] flex items-center justify-center">
+            <i data-lucide="activity" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900">Edit Health Consultation</h3>
+            <p class="text-[11px] text-slate-400" x-text="editPatient"></p>
+          </div>
+        </div>
+        <button type="button" @click="editModal = false" class="text-xs font-semibold text-slate-400 hover:text-slate-700 px-2 py-1 rounded">Close</button>
+      </div>
+
+      <form method="POST" class="p-5 space-y-4">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="edit">
+        <input type="hidden" name="RecordID" :value="editId">
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Service / Consultation Type *</label>
+          <select name="RecordType" x-model="editType" class="form-control w-full min-h-[44px]" required>
+            <option value="General Consultation">General Consultation / Checkup</option>
+            <option value="Maternal & Prenatal Care">Maternal & Prenatal Care</option>
+            <option value="Vaccination / Immunization">Vaccination / Immunization</option>
+            <option value="Dental Checkup">Dental Checkup & Extraction</option>
+            <option value="Child Nutrition & Deworming">Child Nutrition & Deworming</option>
+            <option value="Senior Wellness">Senior Citizen Wellness</option>
+            <option value="First Aid & Wound Dressing">First Aid & Wound Dressing</option>
+            <option value="Hypertension / Diabetes Check">Hypertension & Diabetes Check</option>
+            <option value="TB-DOTS Consultation">TB-DOTS Consultation</option>
+            <option value="Other">Other (Custom Type)</option>
+          </select>
+        </div>
+
+        <div x-show="editType === 'Other'" x-cloak>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Custom Service Name *</label>
+          <input type="text" name="CustomRecordType" x-model="editCustomType" class="form-control w-full min-h-[44px]" placeholder="e.g. Eye Examination">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Consultation Date *</label>
+          <input type="date" name="RecordDate" x-model="editDate" class="form-control w-full min-h-[44px]" required>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Clinical Details / Prescriptions *</label>
+          <textarea name="Details" x-model="editDetails" class="form-control w-full text-xs" rows="4" required></textarea>
+        </div>
+
+        <!-- PRIMARY ACTION FIRST -->
+        <div class="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-2.5">
+          <button type="submit" class="btn btn-primary w-full sm:w-auto font-bold px-5 min-h-[40px]">
+            <span>Save Changes</span>
+          </button>
+          <button type="button" @click="editModal = false" class="btn btn-secondary w-full sm:w-auto min-h-[40px]">
+            <span>Cancel</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

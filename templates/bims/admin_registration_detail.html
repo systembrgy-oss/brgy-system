@@ -1,0 +1,433 @@
+{% extends 'bims/base.html' %}
+
+{% block page_title %}Review Application: {{ app.ReferenceNumber }}{% endblock %}
+{% block page_icon %}<i data-lucide="shield-check"></i>{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'admin_registrations' %}" class="btn btn-secondary btn-sm min-h-[40px] px-3 font-semibold">
+    <i data-lucide="arrow-left" style="width: 14px; height: 14px;"></i>
+    <span>Back to Applications</span>
+  </a>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6" x-data="{ rejectMode: false, tempPassword: '', editDemographics: false }">
+  <!-- Left Column: Uploaded Photo ID, Demographics & Cross-Check (Side-by-Side Review) -->
+  <div class="lg:col-span-8 space-y-6">
+    <!-- Demographics Card -->
+    <div class="card">
+      <div class="card-header flex items-center justify-between">
+        <div class="card-title">
+          <i data-lucide="user" class="text-[#0B5CAD]"></i>
+          <span>Applicant Demographics & Residency Profile</span>
+        </div>
+        <div class="flex items-center gap-2">
+          {% if app.Status == 'Pending' %}
+            <button type="button" @click="editDemographics = !editDemographics" class="btn btn-secondary btn-sm text-xs font-semibold">
+              <i data-lucide="edit" style="width: 13px; height: 13px;"></i>
+              <span x-text="editDemographics ? 'Close Edit' : 'Edit Profile'">Edit Profile</span>
+            </button>
+          {% endif %}
+          {% if app.Status == 'Approved' %}
+            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800 border border-green-300">
+              <i data-lucide="check" style="width: 13px; height: 13px;"></i> Approved
+            </span>
+          {% elif app.Status == 'Pending' %}
+            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+              <i data-lucide="clock" style="width: 13px; height: 13px;"></i> Pending Review
+            </span>
+          {% else %}
+            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-300">
+              <i data-lucide="x" style="width: 13px; height: 13px;"></i> Rejected
+            </span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card-body">
+        <!-- Read-Only View -->
+        <div x-show="!editDemographics" class="space-y-4">
+          <!-- Top Info Header -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-slate-200">
+            <div>
+              <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">APPLICANT NAME</div>
+              <div class="text-lg font-extrabold text-slate-900 mt-0.5">
+                {{ app.FirstName }} {% if app.MiddleName %}{{ app.MiddleName }} {% endif %}{{ app.LastName }}
+              </div>
+              <div class="text-xs text-slate-500 mt-1">
+                Sex: <strong>{{ app.Sex }}</strong> &bull; Birth Date: <strong>{{ app.BirthDate|date:"M d, Y" }}</strong>
+              </div>
+            </div>
+            <div>
+              <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">PRIMARY NOTIFICATION (GMAIL)</div>
+              <div class="text-sm font-bold text-[#0B5CAD] mt-0.5 flex items-center gap-1.5">
+                <i data-lucide="mail" style="width: 16px; height: 16px;"></i>
+                <span>{{ app.Email|default:"None provided" }}</span>
+              </div>
+              <div class="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                <i data-lucide="phone" style="width: 13px; height: 13px;"></i>
+                <span>Mobile: {{ app.ContactNo|default:"None" }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Details Grid -->
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs text-slate-700 pt-1">
+            <div><span class="text-slate-400 block text-[11px]">PUROK / ZONE</span><strong>{{ app.PurokID.PurokName }} (Zone {{ app.PurokID.ZoneNo }})</strong></div>
+            <div><span class="text-slate-400 block text-[11px]">STREET ADDRESS</span><strong>{{ app.StreetAddress }}</strong></div>
+            <div><span class="text-slate-400 block text-[11px]">HOUSEHOLD NUMBER</span><strong>{{ app.HouseholdNumber|default:"Auto-Assigned upon Approval" }}</strong></div>
+            <div><span class="text-slate-400 block text-[11px]">RELATIONSHIP TO HEAD</span><strong>{{ app.RelationshipToHead }}</strong></div>
+            <div><span class="text-slate-400 block text-[11px]">CIVIL STATUS</span><strong>{{ app.CivilStatus }}</strong></div>
+            <div><span class="text-slate-400 block text-[11px]">EMPLOYMENT</span><strong>{{ app.EmploymentStatus }}</strong></div>
+          </div>
+
+          {% if app.Sectors %}
+            <div class="pt-3 border-t border-slate-200">
+              <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">DECLARED PRIORITY SECTOR</span>
+              <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-200">
+                <i data-lucide="tag" style="width: 12px; height: 12px;"></i>
+                {{ app.Sectors }}
+              </span>
+            </div>
+          {% endif %}
+        </div>
+
+        <!-- Editable Form (Staff / Admin Corrections) -->
+        <div x-show="editDemographics" x-cloak>
+          <form method="POST" class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update_applicant_demographics">
+
+            <div class="flex items-center justify-between pb-2 border-b border-slate-200">
+              <span class="text-xs font-bold text-[#0B5CAD] uppercase tracking-wider">
+                Correct Applicant Demographics & Residency Profile
+              </span>
+              <span class="text-[11px] text-slate-400">Save changes before approving</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">First Name *</label>
+                <input type="text" name="FirstName" class="form-control w-full min-h-[40px] text-xs" required value="{{ app.FirstName }}">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Middle Name</label>
+                <input type="text" name="MiddleName" class="form-control w-full min-h-[40px] text-xs" value="{{ app.MiddleName|default:'' }}">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Last Name *</label>
+                <input type="text" name="LastName" class="form-control w-full min-h-[40px] text-xs" required value="{{ app.LastName }}">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Sex *</label>
+                <select name="Sex" class="form-control w-full min-h-[40px] text-xs" required>
+                  <option value="Male" {% if app.Sex == 'Male' %}selected{% endif %}>Male</option>
+                  <option value="Female" {% if app.Sex == 'Female' %}selected{% endif %}>Female</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Birth Date *</label>
+                <input type="date" name="BirthDate" class="form-control w-full min-h-[40px] text-xs" required value="{{ app.BirthDate|date:'Y-m-d' }}">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Civil Status *</label>
+                <select name="CivilStatus" class="form-control w-full min-h-[40px] text-xs" required>
+                  <option value="Single" {% if app.CivilStatus == 'Single' %}selected{% endif %}>Single</option>
+                  <option value="Married" {% if app.CivilStatus == 'Married' %}selected{% endif %}>Married</option>
+                  <option value="Widowed" {% if app.CivilStatus == 'Widowed' %}selected{% endif %}>Widowed</option>
+                  <option value="Separated" {% if app.CivilStatus == 'Separated' %}selected{% endif %}>Separated</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Primary Email (Gmail)</label>
+                <input type="email" name="Email" class="form-control w-full min-h-[40px] text-xs" value="{{ app.Email|default:'' }}" placeholder="e.g. resident@gmail.com">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Mobile / Contact No.</label>
+                <input type="text" name="ContactNo" class="form-control w-full min-h-[40px] text-xs" value="{{ app.ContactNo|default:'' }}" maxlength="11">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Purok / Zone *</label>
+                <select name="PurokID" class="form-control w-full min-h-[40px] text-xs" required>
+                  {% for p in puroks %}
+                    <option value="{{ p.PurokID }}" {% if app.PurokID.PurokID == p.PurokID %}selected{% endif %}>
+                      {{ p.PurokName }} (Zone {{ p.ZoneNo }})
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Street Address *</label>
+                <input type="text" name="StreetAddress" class="form-control w-full min-h-[40px] text-xs" required value="{{ app.StreetAddress }}">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Household Number (Optional)</label>
+                <input type="text" name="HouseholdNumber" class="form-control w-full min-h-[40px] text-xs" value="{{ app.HouseholdNumber|default:'' }}" placeholder="Leave blank to auto-assign">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Relationship to Head *</label>
+                <input type="text" name="RelationshipToHead" class="form-control w-full min-h-[40px] text-xs" required value="{{ app.RelationshipToHead }}">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Employment Status *</label>
+                <select name="EmploymentStatus" class="form-control w-full min-h-[40px] text-xs" required>
+                  <option value="Employed" {% if app.EmploymentStatus == 'Employed' %}selected{% endif %}>Employed</option>
+                  <option value="Self-Employed" {% if app.EmploymentStatus == 'Self-Employed' %}selected{% endif %}>Self-Employed</option>
+                  <option value="Unemployed" {% if app.EmploymentStatus == 'Unemployed' %}selected{% endif %}>Unemployed</option>
+                  <option value="Student" {% if app.EmploymentStatus == 'Student' %}selected{% endif %}>Student</option>
+                  <option value="Retired" {% if app.EmploymentStatus == 'Retired' %}selected{% endif %}>Retired</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- PRIMARY ACTION FIRST -->
+            <div class="flex items-center gap-2 pt-3 border-t border-slate-200">
+              <button type="submit" class="btn btn-primary min-h-[40px] px-5 font-bold">
+                <i data-lucide="save" style="width: 14px; height: 14px;"></i>
+                <span>Save Demographic Updates</span>
+              </button>
+              <button type="button" @click="editDemographics = false" class="btn btn-secondary min-h-[40px]">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Uploaded ID / Proof of Residency Preview (Side-by-Side Review) -->
+    <div class="card">
+      <div class="card-header flex items-center justify-between">
+        <div class="card-title">
+          <i data-lucide="file-check" class="text-[#0B5CAD]"></i>
+          <span>Uploaded Government ID / Proof of Residency</span>
+        </div>
+        {% if app.ProofOfResidencyImage %}
+          <a href="{{ app.ProofOfResidencyImage.url }}" target="_blank" class="btn btn-secondary btn-sm">
+            <i data-lucide="external-link" style="width: 13px; height: 13px;"></i>
+            <span>View Full Image</span>
+          </a>
+        {% endif %}
+      </div>
+      <div class="card-body text-center bg-slate-50">
+        {% if app.ProofOfResidencyImage %}
+          <div class="inline-block rounded-lg overflow-hidden border border-slate-300 shadow-sm max-w-full">
+            <img src="{{ app.ProofOfResidencyImage.url }}" alt="Proof of Residency" class="max-h-96 object-contain mx-auto bg-slate-900">
+          </div>
+        {% else %}
+          <div class="py-12 text-slate-400 text-xs">
+            <i data-lucide="file-x" class="mx-auto mb-2 text-slate-300" style="width: 36px; height: 36px;"></i>
+            <p>No document was uploaded with this application.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Namesake & Historical Document Cross-Check -->
+    <div class="card border-l-4 {% if matched_document_requests %}border-l-amber-500{% else %}border-l-[#0B5CAD]{% endif %}">
+      <div class="card-header flex items-center justify-between">
+        <div class="card-title">
+          <i data-lucide="shield-alert" class="{% if matched_document_requests %}text-amber-600{% else %}text-[#0B5CAD]{% endif %}"></i>
+          <span>Namesake & Document History Cross-Check</span>
+        </div>
+        <span class="text-xs font-bold {% if matched_document_requests %}text-amber-700 bg-amber-100{% else %}text-slate-600 bg-slate-100{% endif %} px-2.5 py-0.5 rounded-full">
+          {{ matched_document_requests.count }} Existing Request{{ matched_document_requests.count|pluralize }}
+        </span>
+      </div>
+      <div class="card-body space-y-3">
+        <p class="text-xs text-slate-600 leading-relaxed">
+          The system protects citizen privacy by strictly isolating document requests by unique <strong>Resident ID</strong>, not solely by name. Below are any existing document applications under the name <strong>{{ app.FirstName }} {{ app.LastName }}</strong>:
+        </p>
+
+        {% if matched_document_requests %}
+          <div class="table-responsive rounded-lg border border-slate-200">
+            <table class="custom-table text-xs">
+              <thead>
+                <tr>
+                  <th>Control #</th>
+                  <th>Document Type</th>
+                  <th>Linked Resident Profile</th>
+                  <th>Date & Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for doc in matched_document_requests %}
+                  <tr>
+                    <td><strong class="font-mono text-[#0B5CAD]">{{ doc.QRCodeHash }}</strong></td>
+                    <td class="font-semibold">{{ doc.DocumentTypeID.DocumentTypeName }}</td>
+                    <td>
+                      <div><strong>#{{ doc.ResidentID.ResidentID }} - {{ doc.ResidentID.full_name }}</strong></div>
+                      <div class="text-[11px] text-slate-500">
+                        Birth: {{ doc.ResidentID.BirthDate|date:"M d, Y" }} &bull; {{ doc.ResidentID.HouseholdID.PurokID.PurokName }}
+                      </div>
+                    </td>
+                    <td>
+                      <div class="text-[11px] text-slate-400">{{ doc.RequestDate|date:"M d, Y" }}</div>
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold {% if doc.RequestStatus == 'Approved' %}bg-green-100 text-green-800{% elif doc.RequestStatus == 'Pending' %}bg-amber-100 text-amber-800{% else %}bg-slate-100 text-slate-700{% endif %}">
+                        {{ doc.RequestStatus }}
+                      </span>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="p-3 bg-amber-50 rounded-lg text-xs text-amber-900 border border-amber-200 leading-relaxed">
+            <strong>Namesake Protection Rule:</strong> If this applicant is a <em>different person</em> who happens to share the same name (namesake), choose <strong>"Treat as Distinct New Citizen"</strong> during approval. This ensures they will only access their own future records and will <strong>never</strong> see or inherit these existing documents.
+          </div>
+        {% else %}
+          <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 flex items-center gap-2">
+            <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 shrink-0"></i>
+            <span>No historical document requests exist under this name. Clean profile ready for issuance.</span>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column: Verification Engine & Official Decision -->
+  <div class="lg:col-span-4 space-y-6">
+    <!-- Census Cross-Check Match -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <i data-lucide="database" class="text-[#0B5CAD]"></i>
+          <span>Census Cross-Check</span>
+        </div>
+      </div>
+      <div class="card-body">
+        {% if app.ExistingResidentMatch %}
+          <div class="p-3.5 bg-emerald-50 border border-emerald-300 rounded-lg text-xs text-emerald-900 leading-relaxed">
+            <div class="font-bold flex items-center gap-1.5 mb-1 text-emerald-950">
+              <i data-lucide="check-circle-2" style="width: 16px; height: 16px; color: #16a34a;"></i>
+              <span>Census Record Matched!</span>
+            </div>
+            Matched resident: <strong>#{{ app.ExistingResidentMatch.ResidentID }} - {{ app.ExistingResidentMatch.full_name }}</strong>.<br>
+            Birth Date: <strong>{{ app.ExistingResidentMatch.BirthDate|date:"M d, Y" }}</strong> &bull; {{ app.ExistingResidentMatch.HouseholdID.PurokID.PurokName }}.
+          </div>
+        {% else %}
+          <div class="p-3.5 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-900 leading-relaxed">
+            <div class="font-bold flex items-center gap-1.5 mb-1 text-amber-950">
+              <i data-lucide="alert-triangle" style="width: 16px; height: 16px; color: #d97706;"></i>
+              <span>New Citizen Resident</span>
+            </div>
+            Not yet in field census. Approving will automatically create a brand new Resident record in the official database.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Official Decision Form -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <i data-lucide="check-square" class="text-[#0B5CAD]"></i>
+          <span>Official Action</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <form method="POST" class="space-y-4">
+          {% csrf_token %}
+
+          <!-- Conditional Rejection Remarks Area -->
+          <div x-show="rejectMode" x-cloak class="p-3 bg-red-50 border border-red-200 rounded-lg space-y-2">
+            <label class="block text-xs font-bold text-red-900 uppercase tracking-wider">
+              Reason for Rejection *
+            </label>
+            <textarea name="AdminRemarks" class="form-control w-full text-xs" rows="3" placeholder="Explain why the application is rejected or what document needs to be re-uploaded..."></textarea>
+            <div class="flex gap-2">
+              <button type="submit" name="action" value="reject" class="btn btn-danger btn-sm font-bold flex-1 min-h-[38px]">
+                <i data-lucide="x" style="width: 14px; height: 14px;"></i> Confirm Rejection
+              </button>
+              <button type="button" @click="rejectMode = false" class="btn btn-secondary btn-sm">
+                Cancel
+              </button>
+            </div>
+          </div>
+
+          <!-- Default Action Area -->
+          <div x-show="!rejectMode" class="space-y-3">
+            <!-- Namesake & Identity Disambiguation Option -->
+            {% if app.ExistingResidentMatch or namesake_residents %}
+              <div class="p-3 bg-sky-50/80 border border-sky-200 rounded-lg text-xs space-y-2">
+                <span class="font-bold text-[#084887] block flex items-center gap-1.5">
+                  <i data-lucide="shield-check" class="w-4 h-4 text-[#0b5cad]"></i>
+                  Identity Resolution / Namesake Protection:
+                </span>
+                <label class="flex items-start gap-2 cursor-pointer font-medium text-slate-800">
+                  <input type="radio" name="treat_as_distinct_citizen" value="0" checked class="mt-0.5">
+                  <span>
+                    {% if app.ExistingResidentMatch %}
+                      Confirm applicant is <strong>{{ app.ExistingResidentMatch.full_name }} (Resident #{{ app.ExistingResidentMatch.ResidentID }})</strong> & link profile.
+                    {% else %}
+                      Link to verified matching citizen.
+                    {% endif %}
+                  </span>
+                </label>
+                <label class="flex items-start gap-2 cursor-pointer font-medium text-slate-800">
+                  <input type="radio" name="treat_as_distinct_citizen" value="1" class="mt-0.5">
+                  <span>
+                    <strong>Namesake (Different Person):</strong> Create as a distinct new Citizen record so they will never access another resident's document requests.
+                  </span>
+                </label>
+              </div>
+            {% endif %}
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Remarks / Verification Notes (Optional)
+              </label>
+              <input type="text" name="AdminRemarks" class="form-control w-full text-xs" value="{{ app.AdminRemarks|default:'' }}" placeholder="e.g. Validated against Comelec list">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Temporary Password (Optional)
+              </label>
+              <div class="flex gap-2">
+                <input type="text" name="temporary_password" x-model="tempPassword" class="form-control w-full text-xs font-mono" placeholder="Leave blank to keep resident's registered password">
+                <button type="button" @click="tempPassword = 'Bims-' + Math.floor(100000 + Math.random() * 900000) + '!'" class="btn btn-secondary btn-sm text-xs font-semibold whitespace-nowrap">
+                  <i data-lucide="key" style="width: 13px; height: 13px;"></i>
+                  <span>Generate</span>
+                </button>
+              </div>
+              <span class="text-[11px] text-slate-400 mt-0.5 block">Sent directly to applicant's Gmail together with their username upon approval.</span>
+            </div>
+
+            <button type="submit" name="action" value="approve" class="btn btn-emerald w-full min-h-[44px] font-bold"
+                    data-confirm="Approve and activate resident account for {{ app.FirstName }} {{ app.LastName }}? An activation email with access credentials will be sent to {{ app.Email|default:'their email address' }}."
+                    data-confirm-title="Approve Resident Account"
+                    data-confirm-btn="Approve & Activate Account"
+                    data-cancel-btn="Cancel"
+                    data-confirm-variant="emerald">
+              <i data-lucide="user-check" style="width: 16px; height: 16px;"></i>
+              <span>Approve & Activate Account</span>
+            </button>
+
+            <button type="button" @click="rejectMode = true" class="btn btn-danger w-full min-h-[44px] font-bold">
+              <i data-lucide="user-x" style="width: 16px; height: 16px;"></i>
+              <span>Reject Application</span>
+            </button>
+          </div>
+        </form>
+
+        <div class="mt-4 pt-3 border-t border-slate-200 text-[11px] text-slate-500 leading-normal">
+          <strong>Automatic Notification:</strong> Approving activates user <code>{{ app.Username }}</code> and dispatches activation notices to <strong>{{ app.Email|default:app.ContactNo }}</strong>.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

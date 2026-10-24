@@ -1,0 +1,177 @@
+{% extends 'bims/base.html' %}
+
+{% block page_title %}Residents Registry & Demographics{% endblock %}
+{% block page_icon %}<i data-lucide="users"></i>{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'census_import' %}" class="btn btn-secondary btn-sm">
+    <i data-lucide="file-spreadsheet" style="width: 15px; height: 15px;"></i>
+    <span>Import</span>
+  </a>
+  <a href="{% url 'resident_create' %}" class="btn btn-primary btn-sm">
+    <i data-lucide="user-plus" style="width: 15px; height: 15px;"></i>
+    <span>Register Resident</span>
+  </a>
+{% endblock %}
+
+
+{% block content %}
+  <!-- Filters & Search Bar -->
+  <div class="card" style="margin-bottom: 20px;">
+    <div class="card-body" style="padding: 16px 20px;">
+      <form method="GET" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+        <div style="flex: 1; min-width: 220px; position: relative;">
+          <input type="text" name="q" value="{{ query }}" placeholder="Search by name or household..." class="form-control" style="width: 100%; padding-left: 36px;">
+          <i data-lucide="search" style="position: absolute; left: 10px; top: 11px; width: 16px; height: 16px; color: var(--text-light);"></i>
+        </div>
+
+        <select name="purok" class="form-control" style="width: auto;">
+          <option value="">All Puroks / Zones</option>
+          {% for p in puroks %}
+            <option value="{{ p.PurokID }}" {% if selected_purok == p.PurokID|stringformat:"s" %}selected{% endif %}>
+              {{ p.PurokName }}
+            </option>
+          {% endfor %}
+        </select>
+
+        <select name="sector" class="form-control" style="width: auto;">
+          <option value="">All Sectors</option>
+          {% for s in sectors %}
+            <option value="{{ s.SectorID }}" {% if selected_sector == s.SectorID|stringformat:"s" %}selected{% endif %}>
+              {{ s.SectorName }}
+            </option>
+          {% endfor %}
+        </select>
+
+        <select name="voter" class="form-control" style="width: auto;">
+          <option value="">All Voters</option>
+          <option value="1" {% if selected_voter == '1' %}selected{% endif %}>Registered Voters</option>
+          <option value="0" {% if selected_voter == '0' %}selected{% endif %}>Non-Voters</option>
+        </select>
+
+        <button type="submit" class="btn btn-secondary">
+          <i data-lucide="filter" style="width: 15px; height: 15px;"></i> Filter
+        </button>
+        {% if query or selected_purok or selected_sector or selected_voter %}
+          <a href="{% url 'residents_list' %}" class="btn btn-secondary" title="Reset Filters">
+            <i data-lucide="rotate-ccw" style="width: 15px; height: 15px;"></i>
+          </a>
+        {% endif %}
+      </form>
+    </div>
+  </div>
+
+  <!-- Residents Table -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        <i data-lucide="contact-2"></i>
+        <span>Registered Citizens ({{ residents|length }})</span>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="custom-table">
+        <thead>
+          <tr>
+            <th>Full Name</th>
+            <th>Age / Sex</th>
+            <th>Purok & Address</th>
+            <th>Civil / Employment</th>
+            <th>Sectors / Tags</th>
+            <th>Voter</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in residents %}
+            <tr>
+              <td>
+                <a href="{% url 'resident_detail' r.ResidentID %}" style="font-weight: 700; color: var(--primary); text-decoration: none;">
+                  {{ r.full_name }}
+                </a>
+                <div style="font-size: 0.72rem; color: var(--text-muted);">HH #{{ r.HouseholdID.HouseholdNumber }} ({{ r.RelationshipToHead }})</div>
+              </td>
+              <td>
+                {{ r.age }} yrs old
+                <div style="font-size: 0.75rem; color: var(--text-muted);">{{ r.Sex }}</div>
+              </td>
+              <td>
+                <div>{{ r.HouseholdID.PurokID.PurokName }}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">{{ r.HouseholdID.StreetAddress }}</div>
+              </td>
+              <td>
+                <div>{{ r.CivilStatus }}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">{{ r.EmploymentStatus }}</div>
+              </td>
+              <td>
+                {% for rs in r.resident_sectors.all %}
+                  <span class="sector-tag 
+                    {% if rs.SectorID.SectorName == 'Senior Citizen' %}senior
+                    {% elif rs.SectorID.SectorName == 'PWD' %}pwd
+                    {% elif rs.SectorID.SectorName == 'Solo Parent' %}solo
+                    {% elif rs.SectorID.SectorName == '4Ps Beneficiary' %}fourps{% endif %}">
+                    {{ rs.SectorID.SectorName }}
+                  </span>
+                {% empty %}
+                  <span style="color: var(--text-light); font-size: 0.75rem;">None</span>
+                {% endfor %}
+              </td>
+              <td>
+                {% if r.IsVoter %}
+                  <span class="badge badge-approved"><i data-lucide="check" style="width: 10px; height: 10px;"></i> Voter</span>
+                {% else %}
+                  <span class="badge badge-rejected">Non-Voter</span>
+                {% endif %}
+              <td class="text-right">
+                <div class="relative inline-block text-left" x-data="actionMenu()" @close-all-action-menus.window="close()">
+                  <button type="button"
+                          @click="toggle($event)"
+                          class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition border border-transparent hover:border-slate-200"
+                          title="Actions">
+                    <i data-lucide="more-vertical" style="width: 16px; height: 16px;"></i>
+                  </button>
+                  <template x-teleport="body">
+                    <div x-show="open"
+                         x-cloak
+                         @click.away="close()"
+                         @keydown.escape.window="close()"
+                         :style="coords"
+                         class="fixed z-[99999] w-48 bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 overflow-hidden transform transition-all text-left"
+                         x-transition:enter="transition ease-out duration-100"
+                         x-transition:enter-start="opacity-0 scale-95"
+                         x-transition:enter-end="opacity-100 scale-100">
+                      <a href="{% url 'resident_detail' r.ResidentID %}"
+                         @click="close()"
+                         class="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                        <i data-lucide="eye" class="w-3.5 h-3.5 text-slate-400"></i>
+                        <span>View Profile</span>
+                      </a>
+                      <a href="{% url 'resident_edit' r.ResidentID %}"
+                         @click="close()"
+                         class="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                        <i data-lucide="edit-3" class="w-3.5 h-3.5 text-slate-400"></i>
+                        <span>Edit Citizen Record</span>
+                      </a>
+                      <a href="{% url 'document_request_create' %}?resident={{ r.ResidentID }}"
+                         @click="close()"
+                         class="w-full text-left px-3.5 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 flex items-center gap-2">
+                        <i data-lucide="file-plus" class="w-3.5 h-3.5 text-emerald-500"></i>
+                        <span>Issue Clearance</span>
+                      </a>
+                    </div>
+                  </template>
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 32px;">
+                No resident records matched the search criteria.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,131 @@
+{% extends 'bims/base.html' %}
+
+{% block page_title %}Blotter Case #{{ incident.IncidentID }}{% endblock %}
+{% block page_icon %}<i data-lucide="scale"></i>{% endblock %}
+
+{% block page_actions %}
+  <a href="{% url 'incidents_list' %}" class="btn btn-secondary btn-sm">
+    <i data-lucide="arrow-left" style="width: 15px; height: 15px;"></i>
+    <span>Back to Cases</span>
+  </a>
+  {% if role_name in 'Admin,Staff' %}
+    <a href="{% url 'hearing_create' incident.IncidentID %}" class="btn btn-emerald btn-sm">
+      <i data-lucide="calendar-plus" style="width: 15px; height: 15px;"></i>
+      <span>Schedule Conciliation Hearing</span>
+    </a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+  <!-- Incident Narrative & Details -->
+  <div style="display: flex; flex-direction: column; gap: 24px;">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <i data-lucide="file-text"></i>
+          <span>Case Narrative & Parties</span>
+        </div>
+        <span class="badge badge-{{ incident.CaseStatus|slugify }}" style="font-size: 0.82rem; padding: 4px 10px;">
+          {{ incident.CaseStatus }}
+        </span>
+      </div>
+      <div class="card-body">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--surface-border);">
+          <div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">COMPLAINANT</div>
+            <div style="font-size: 1.05rem; font-weight: 700; color: var(--text-main); margin-top: 4px;">{{ incident.ComplainantResidentID.full_name }}</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">{{ incident.ComplainantResidentID.HouseholdID.StreetAddress }}, {{ incident.ComplainantResidentID.HouseholdID.PurokID.PurokName }}</div>
+          </div>
+          <div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">RESPONDENT</div>
+            <div style="font-size: 1.05rem; font-weight: 700; color: var(--rose); margin-top: 4px;">{{ incident.RespondentName }}</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Party Summoned for Mediation</div>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 6px;">INCIDENT DATE & TIME</div>
+          <div>{{ incident.IncidentDate|date:"F d, Y - h:i A" }}</div>
+        </div>
+
+        <div>
+          <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 6px;">STATEMENT OF FACTS / DETAILS</div>
+          <div style="background: #f8fafc; padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--surface-border); font-size: 0.9rem; line-height: 1.7; white-space: pre-wrap;">
+{{ incident.IncidentDetails }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scheduled Hearings Table -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <i data-lucide="calendar"></i>
+          <span>Katarungang Pambarangay Hearing Schedules & Summons</span>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="custom-table">
+          <thead>
+            <tr>
+              <th>Hearing Date / Time</th>
+              <th>Summons Details</th>
+              <th>Remarks / Resolution</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for h in hearings %}
+              <tr>
+                <td><strong>{{ h.HearingDate|date:"M d, Y - h:i A" }}</strong></td>
+                <td>{{ h.SummonsDetails|default:"Standard 1st Summons" }}</td>
+                <td>{{ h.Remarks|default:"Pending hearing session" }}</td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="3" style="text-align: center; color: var(--text-muted); padding: 20px;">
+                  No conciliation hearings scheduled yet.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Transition Panel (Admin/Staff only) -->
+  {% if role_name in 'Admin,Staff' %}
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <i data-lucide="edit-3"></i>
+          <span>Update Case Status</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <form method="POST">
+          {% csrf_token %}
+          <div class="form-group">
+            <label class="form-label">Mediation / Action Status</label>
+            <select name="CaseStatus" class="form-control">
+              <option value="Filed" {% if incident.CaseStatus == 'Filed' %}selected{% endif %}>Filed (Under Review)</option>
+              <option value="Under Mediation" {% if incident.CaseStatus == 'Under Mediation' %}selected{% endif %}>Under Mediation (Hearing ongoing)</option>
+              <option value="Resolved" {% if incident.CaseStatus == 'Resolved' %}selected{% endif %}>Resolved (Amicable settlement)</option>
+              <option value="Escalated" {% if incident.CaseStatus == 'Escalated' %}selected{% endif %}>Escalated (Certificate to File Action issued)</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 10px;">
+            <i data-lucide="save" style="width: 16px; height: 16px;"></i> Update Status
+          </button>
+        </form>
+
+        <div style="margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--surface-border); font-size: 0.8rem; color: var(--text-muted);">
+          <strong>Lupon Procedure Note:</strong> In accordance with the Local Government Code of 1991 (RA 7160), 3 conciliation hearings must be conducted before issuing a <em>Certificate to File Action</em>.
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

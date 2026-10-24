@@ -1,0 +1,280 @@
+<!-- ========================================================================
+     SHARED ACCESSIBLE CUSTOM DIALOG COMPONENT
+     Standards:
+     1. Dim background (backdrop-blur + bg-slate-900/60).
+     2. Close on Esc, Close button, or click outside backdrop.
+     3. Focus moves into primary action on open; restores to trigger button on close. Focus trapped inside.
+     4. Plain words, PRIMARY ACTION FIRST.
+     5. Zero native alert(), confirm(), or prompt().
+     ======================================================================== -->
+<div id="sharedCustomDialog"
+     x-data="sharedDialogManager()"
+     x-cloak
+     x-show="isOpen"
+     @keydown.escape.window="if (isOpen) cancel()"
+     @keydown.tab="handleFocusTrap($event)"
+     class="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-slate-900/60 backdrop-blur-xs transition-opacity duration-200"
+     x-transition:enter="ease-out duration-200"
+     x-transition:enter-start="opacity-0"
+     x-transition:enter-end="opacity-100"
+     x-transition:leave="ease-in duration-150"
+     x-transition:leave-start="opacity-100"
+     x-transition:leave-end="opacity-0"
+     @click.self="cancel()"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="sharedDialogTitle"
+     aria-describedby="sharedDialogDesc">
+
+  <!-- Dialog Card -->
+  <div class="relative w-full max-w-md bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden transform transition-all duration-200"
+       x-transition:enter="ease-out duration-200"
+       x-transition:enter-start="opacity-0 scale-95 translate-y-2"
+       x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+       x-transition:leave="ease-in duration-150"
+       x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+       x-transition:leave-end="opacity-0 scale-95 translate-y-2"
+       x-ref="dialogCard">
+
+    <!-- Dialog Header -->
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/75">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <!-- Dynamic Variant Icon -->
+        <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+             :class="{
+               'bg-emerald-100 text-emerald-700': variant === 'emerald' || variant === 'success',
+               'bg-red-100 text-red-700': variant === 'danger' || variant === 'red',
+               'bg-amber-100 text-amber-700': variant === 'warning' || variant === 'amber',
+               'bg-sky-100 text-[#0b5cad]': variant === 'primary' || variant === 'info'
+             }">
+          <template x-if="variant === 'danger' || variant === 'red'">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+          </template>
+          <template x-if="variant === 'emerald' || variant === 'success'">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          </template>
+          <template x-if="variant === 'warning' || variant === 'amber'">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          </template>
+          <template x-if="variant === 'primary' || variant === 'info'">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          </template>
+        </div>
+
+        <h3 id="sharedDialogTitle" class="text-sm sm:text-base font-bold text-slate-900 truncate" x-text="title">
+          Confirm Action
+        </h3>
+      </div>
+
+      <!-- Close Button (Esc / Click Outside / Close Button) -->
+      <button type="button"
+              @click="cancel()"
+              class="text-xs font-semibold text-slate-400 hover:text-slate-700 px-2 py-1 rounded hover:bg-slate-200/60 transition-colors flex items-center gap-1 shrink-0"
+              aria-label="Close dialog">
+        <span>Close</span>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+      </button>
+    </div>
+
+    <!-- Dialog Message Body -->
+    <div class="px-5 py-4 text-xs sm:text-sm text-slate-600 leading-relaxed" id="sharedDialogDesc" x-html="message">
+    </div>
+
+    <!-- Dialog Actions Footer: PRIMARY ACTION FIRST (per standards) -->
+    <div class="px-5 py-3.5 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-2.5">
+      <!-- 1. PRIMARY ACTION BUTTON (FIRST) -->
+      <button type="button"
+              x-ref="primaryBtn"
+              @click="confirmAction()"
+              :class="{
+                'bg-emerald-600 hover:bg-emerald-700 text-white focus:ring-emerald-500': variant === 'emerald' || variant === 'success',
+                'bg-red-600 hover:bg-red-700 text-white focus:ring-red-500': variant === 'danger' || variant === 'red',
+                'bg-[#0b5cad] hover:bg-[#084887] text-white focus:ring-[#0b5cad]': variant === 'primary' || variant === 'info' || variant === 'warning' || variant === 'amber'
+              }"
+              class="w-full sm:w-auto inline-flex items-center justify-center font-bold text-xs px-4 py-2.5 rounded-lg transition-colors shadow-xs outline-none focus:ring-2 focus:ring-offset-2 min-h-[40px]">
+        <span x-text="confirmText">Confirm</span>
+      </button>
+
+      <!-- 2. SECONDARY / CANCEL BUTTON (Only shown for confirms) -->
+      <template x-if="isConfirmMode">
+        <button type="button"
+                x-ref="cancelBtn"
+                @click="cancel()"
+                class="w-full sm:w-auto inline-flex items-center justify-center font-semibold text-xs px-4 py-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition-colors outline-none focus:ring-2 focus:ring-slate-300 min-h-[40px]">
+          <span x-text="cancelText">Cancel</span>
+        </button>
+      </template>
+    </div>
+  </div>
+</div>
+
+<script>
+  function sharedDialogManager() {
+    return {
+      isOpen: false,
+      title: 'Notification',
+      message: '',
+      confirmText: 'Confirm',
+      cancelText: 'Cancel',
+      variant: 'primary', // 'primary', 'emerald', 'danger', 'warning'
+      isConfirmMode: true,
+      triggerElement: null,
+      resolvePromise: null,
+
+      init() {
+        // Expose custom dialog functions globally
+        window.customConfirm = (options) => {
+          return new Promise((resolve) => {
+            this.triggerElement = options.triggerElement || document.activeElement;
+            this.title = options.title || 'Please Confirm';
+            this.message = options.message || 'Are you sure you want to proceed?';
+            this.confirmText = options.confirmText || 'Confirm';
+            this.cancelText = options.cancelText || 'Cancel';
+            this.variant = options.variant || 'primary';
+            this.isConfirmMode = true;
+            this.resolvePromise = resolve;
+            this.open();
+          });
+        };
+
+        window.customAlert = (options) => {
+          return new Promise((resolve) => {
+            if (typeof options === 'string') {
+              options = { message: options };
+            }
+            this.triggerElement = options.triggerElement || document.activeElement;
+            this.title = options.title || 'Notice';
+            this.message = options.message || '';
+            this.confirmText = options.primaryText || options.confirmText || 'Understood';
+            this.variant = options.variant || 'primary';
+            this.isConfirmMode = false;
+            this.resolvePromise = resolve;
+            this.open();
+          });
+        };
+
+        // Standard zero native dialog policy
+        window.alert = (msg) => {
+          console.info('[BIMS Standards] Intercepted native alert(). Showing accessible shared dialog.');
+          return window.customAlert({
+            title: 'Notice',
+            message: String(msg),
+            primaryText: 'Understood'
+          });
+        };
+
+        window.confirm = (msg) => {
+          console.warn('[BIMS Standards] Intercepted native confirm(). Please use window.customConfirm() or data-confirm.');
+          window.customAlert({
+            title: 'Action Notice',
+            message: String(msg) + '<br><small class="text-slate-400 mt-2 block">(Please review and submit your request directly)</small>',
+            primaryText: 'Close'
+          });
+          return false;
+        };
+
+        window.prompt = () => {
+          console.warn('[BIMS Standards] Native prompt() is disabled by system UX standards.');
+          return null;
+        };
+      },
+
+      open() {
+        this.isOpen = true;
+        // Move focus into the primary action button after render
+        this.$nextTick(() => {
+          if (this.$refs.primaryBtn) {
+            this.$refs.primaryBtn.focus();
+          }
+        });
+      },
+
+      confirmAction() {
+        this.close(true);
+      },
+
+      cancel() {
+        this.close(false);
+      },
+
+      close(result) {
+        this.isOpen = false;
+        if (this.resolvePromise) {
+          this.resolvePromise(result);
+          this.resolvePromise = null;
+        }
+
+        // Return focus to the trigger element that opened the dialog
+        this.$nextTick(() => {
+          if (this.triggerElement && typeof this.triggerElement.focus === 'function') {
+            this.triggerElement.focus();
+          }
+        });
+      },
+
+      handleFocusTrap(event) {
+        if (!this.isOpen) return;
+        const focusable = this.$refs.dialogCard.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (!focusable.length) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (event.shiftKey) {
+          if (document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+          }
+        }
+      }
+    };
+  }
+
+  // Global declarative data-confirm handler for any button or link
+  document.addEventListener('click', async function(e) {
+    const trigger = e.target.closest('[data-confirm]');
+    if (!trigger) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const title = trigger.getAttribute('data-confirm-title') || 'Please Confirm';
+    const message = trigger.getAttribute('data-confirm');
+    const confirmText = trigger.getAttribute('data-confirm-btn') || 'Proceed';
+    const cancelText = trigger.getAttribute('data-cancel-btn') || 'Cancel';
+    const variant = trigger.getAttribute('data-confirm-variant') || 'primary';
+
+    const ok = await window.customConfirm({
+      title,
+      message,
+      confirmText,
+      cancelText,
+      variant,
+      triggerElement: trigger
+    });
+
+    if (ok) {
+      if (typeof window.markClean === 'function') {
+        window.markClean();
+      }
+      if (trigger.tagName === 'A' && trigger.href) {
+        window.location.href = trigger.href;
+      } else if (trigger.form) {
+        // If it's a submit button with a name & value, append as hidden input so Django view gets the action
+        if (trigger.name && trigger.value) {
+          const hiddenInput = document.createElement('input');
+          hiddenInput.type = 'hidden';
+          hiddenInput.name = trigger.name;
+          hiddenInput.value = trigger.value;
+          trigger.form.appendChild(hiddenInput);
+        }
+        trigger.form.submit();
+      }
+    }
+  });
+</script>

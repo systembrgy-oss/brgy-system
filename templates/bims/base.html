@@ -1,0 +1,590 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" x-data="{
+  lang: localStorage.getItem('bims_lang') || 'en',
+  toggleLang() { this.lang = (this.lang === 'en' ? 'fil' : 'en'); localStorage.setItem('bims_lang', this.lang); },
+  sidebarCollapsed: localStorage.getItem('bims_sidebar_collapsed') === 'true',
+  toggleSidebar() { this.sidebarCollapsed = !this.sidebarCollapsed; localStorage.setItem('bims_sidebar_collapsed', this.sidebarCollapsed); }
+}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Barangay Information Management System{% endblock %}</title>
+  
+  <!-- Inter Google Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Base Design System CSS -->
+  <link rel="stylesheet" href="{% static 'css/bims.css' %}">
+  
+  <!-- Tailwind CSS CDN with Custom Civic Tokens -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            civic: {
+              50: '#f0f7ff',
+              100: '#ebf5ff',
+              500: '#0b5cad',
+              600: '#0b5cad',
+              700: '#084887',
+              800: '#063564',
+              900: '#042343',
+            },
+            approved: '#16a34a',
+            pending: '#d97706',
+            rejected: '#dc2626',
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- Alpine.js & HTMX -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.10/dist/cdn.min.js"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans antialiased min-h-screen">
+  <div class="app-layout">
+    <!-- Desktop Sidebar Navigation -->
+    <aside class="sidebar" :class="{ 'is-collapsed': sidebarCollapsed }">
+      <div class="sidebar-header">
+        <div class="logo-icon">
+          <i data-lucide="landmark"></i>
+        </div>
+        <div>
+          <div class="brand-title">{{ barangay_info.BarangayName|default:"BIMS Portal" }}</div>
+          <div class="brand-subtitle">{{ barangay_info.CityOrMunicipality|default:"Barangay Information System" }}</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-title" x-text="lang === 'fil' ? 'Pangkalahatan' : 'Overview'">Overview</div>
+        <a href="{% url 'dashboard' %}" class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+          <i data-lucide="layout-dashboard"></i>
+          <span x-text="lang === 'fil' ? 'Dashboard' : 'Dashboard'">Dashboard</span>
+        </a>
+
+        {% if request.user.RoleID.RoleName in 'Admin,Staff' or request.user.is_superuser %}
+        <div class="nav-section-title" x-text="lang === 'fil' ? 'Pangangasiwa ng Pamayanan' : 'Core Operations'">Core Operations</div>
+        <a href="{% url 'admin_registrations' %}" class="nav-link {% if 'registration' in request.resolver_match.url_name %}active{% endif %}">
+          <i data-lucide="user-check"></i>
+          <span x-text="lang === 'fil' ? 'Mga Aplikasyon ng Mamamayan' : 'Citizen Applications'">Citizen Applications</span>
+        </a>
+        <a href="{% url 'residents_list' %}" class="nav-link {% if 'resident' in request.resolver_match.url_name or 'census' in request.resolver_match.url_name and 'registration' not in request.resolver_match.url_name %}active{% endif %}">
+          <i data-lucide="users"></i>
+          <span x-text="lang === 'fil' ? 'Talaan ng mga Residente' : 'Residents Registry'">Residents Registry</span>
+        </a>
+        <a href="{% url 'households_list' %}" class="nav-link {% if 'household' in request.resolver_match.url_name %}active{% endif %}">
+          <i data-lucide="home"></i>
+          <span x-text="lang === 'fil' ? 'Mapa ng mga Kabahayan' : 'Household Mapping'">Household Mapping</span>
+        </a>
+        {% endif %}
+
+        <div class="nav-section-title" x-text="lang === 'fil' ? 'Mga Serbisyo at Dokumento' : 'Services & Documents'">Services & Documents</div>
+        <a href="{% url 'documents_list' %}" class="nav-link {% if 'document' in request.resolver_match.url_name %}active{% endif %}">
+          <i data-lucide="file-check-2"></i>
+          <span x-text="lang === 'fil' ? 'Mga Kahilingan sa Dokumento' : 'Document Requests'">Document Requests</span>
+        </a>
+        <a href="{% url 'incidents_list' %}" class="nav-link {% if 'incident' in request.resolver_match.url_name or 'hearing' in request.resolver_match.url_name %}active{% endif %}">
+          <i data-lucide="shield-alert"></i>
+          <span x-text="lang === 'fil' ? 'Blotter at Insidente (KP)' : 'Blotter & Incident'">Blotter & Incident</span>
+        </a>
+
+        {% if request.user.RoleID.RoleName in 'Admin,Staff' or request.user.is_superuser %}
+        <div class="nav-section-title" x-text="lang === 'fil' ? 'Kalusugan at Ayuda' : 'Health & Social Services'">Health & Social Services</div>
+        <a href="{% url 'assistance_programs_list' %}" class="nav-link {% if 'assistance' in request.resolver_match.url_name %}active{% endif %}">
+          <i data-lucide="hand-heart"></i>
+          <span x-text="lang === 'fil' ? 'Pamamahagi ng Ayuda' : 'Assistance Tracking'">Assistance Tracking</span>
+        </a>
+        <a href="{% url 'health_records_list' %}" class="nav-link {% if 'health' in request.resolver_match.url_name %}active{% endif %}">
+          <i data-lucide="activity"></i>
+          <span x-text="lang === 'fil' ? 'Talaan sa Health Center' : 'Health Center Logs'">Health Center Logs</span>
+        </a>
+        <a href="{% url 'medicines_inventory' %}" class="nav-link {% if 'medicine' in request.resolver_match.url_name %}active{% endif %}">
+          <i data-lucide="pill"></i>
+          <span x-text="lang === 'fil' ? 'Imbentaryo ng Gamot' : 'Medicine Inventory'">Medicine Inventory</span>
+        </a>
+        {% endif %}
+
+        <div class="nav-section-title" x-text="lang === 'fil' ? 'Pamayanan' : 'Community'">Community</div>
+        <a href="{% url 'announcements_list' %}" class="nav-link {% if 'announcement' in request.resolver_match.url_name %}active{% endif %}">
+          <i data-lucide="megaphone"></i>
+          <span x-text="lang === 'fil' ? 'Mga Patalastas' : 'Announcements'">Announcements</span>
+        </a>
+
+        {% if request.user.RoleID.RoleName == 'Admin' or request.user.is_superuser %}
+        <div class="nav-section-title" x-text="lang === 'fil' ? 'Sistema' : 'System'">System</div>
+        <a href="{% url 'barangay_settings' %}" class="nav-link {% if request.resolver_match.url_name in 'barangay_settings,users_list,audit_logs_list' %}active{% endif %}">
+          <i data-lucide="sliders"></i>
+          <span x-text="lang === 'fil' ? 'Sistema' : 'System'">System</span>
+        </a>
+        {% endif %}
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-badge">
+          <div class="user-avatar">
+            {{ request.user.first_name|default:request.user.username|make_list|first|upper }}
+          </div>
+          <div class="user-info">
+            <div class="user-name">{{ request.user.first_name }} {{ request.user.last_name|default:request.user.username }}</div>
+            <div class="user-role-tag">{{ request.user.RoleID.RoleName|default:"SuperAdmin" }}</div>
+          </div>
+          <a href="{% url 'logout' %}" class="text-slate-400 hover:text-red-400 ml-auto p-1 transition" title="Logout">
+            <i data-lucide="log-out" style="width: 18px; height: 18px;"></i>
+          </a>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Wrapper -->
+    <div class="main-wrapper">
+      <header class="topbar">
+        <div class="topbar-title flex items-center gap-2">
+          <button type="button" @click="toggleSidebar()" class="hidden sm:inline-flex p-1.5 text-slate-500 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-300 rounded-md transition shadow-2xs mr-1" title="Toggle Sidebar Width">
+            <i data-lucide="menu" style="width: 16px; height: 16px;"></i>
+          </button>
+          {% block page_icon %}<i data-lucide="layout-dashboard"></i>{% endblock %}
+          <span>{% block page_title %}Dashboard{% endblock %}</span>
+        </div>
+        
+        <div class="topbar-actions flex items-center gap-2.5">
+          {% block page_actions %}{% endblock %}
+
+          <!-- Notification Bell Dropdown -->
+          <div class="relative" x-data="{ notifOpen: false }">
+            <button @click="notifOpen = !notifOpen" @click.away="notifOpen = false" type="button" class="relative p-2 text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-300 rounded-md transition" title="Notifications">
+              <i data-lucide="bell" style="width: 15px; height: 15px;"></i>
+              {% if unread_notif_count > 0 %}
+                <span class="absolute -top-1 -right-1 bg-red-600 text-white font-bold text-[10px] w-4 h-4 rounded-full flex items-center justify-center animate-pulse">
+                  {{ unread_notif_count }}
+                </span>
+              {% endif %}
+            </button>
+
+            <!-- Dropdown Menu -->
+            <div x-show="notifOpen" x-cloak class="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 overflow-hidden"
+                 x-transition:enter="transition ease-out duration-150"
+                 x-transition:enter-start="opacity-0 scale-95"
+                 x-transition:enter-end="opacity-100 scale-100">
+              <div class="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-xs text-slate-900">Notifications</span>
+                  {% if unread_notif_count > 0 %}
+                    <span class="bg-[#0b5cad]/10 text-[#0b5cad] font-bold text-[11px] px-2 py-0.5 rounded-full">{{ unread_notif_count }} unread</span>
+                  {% endif %}
+                </div>
+                {% if unread_notif_count > 0 %}
+                  <a href="{% url 'notification_mark_all_read' %}" class="text-[11px] font-semibold text-[#0b5cad] hover:underline">Mark all read</a>
+                {% endif %}
+              </div>
+              
+              <div class="max-h-80 overflow-y-auto divide-y divide-slate-100 text-xs">
+                {% for notif in user_notifications %}
+                  <a href="{% url 'notification_mark_read' notif.NotificationID %}" class="p-3 block hover:bg-slate-50 transition {% if not notif.IsRead %}bg-sky-50/50{% endif %}">
+                    <div class="flex items-start gap-2.5">
+                      <div class="mt-0.5 shrink-0">
+                        {% if notif.NotificationType == 'registration' %}
+                          <span class="w-6 h-6 rounded-full bg-blue-100 text-[#0b5cad] flex items-center justify-center text-[10px] font-bold">REG</span>
+                        {% elif notif.NotificationType == 'document' %}
+                          <span class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] font-bold">DOC</span>
+                        {% elif notif.NotificationType == 'incident' %}
+                          <span class="w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-bold">KP</span>
+                        {% elif notif.NotificationType == 'announcement' %}
+                          <span class="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-[10px] font-bold">NEW</span>
+                        {% else %}
+                          <span class="w-6 h-6 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center text-[10px] font-bold">SYS</span>
+                        {% endif %}
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between">
+                          <strong class="font-semibold text-slate-900 truncate">{{ notif.Title }}</strong>
+                          <span class="text-[10px] text-slate-400 whitespace-nowrap ml-1">{{ notif.CreatedAt|timesince }} ago</span>
+                        </div>
+                        <p class="text-[11px] text-slate-600 line-clamp-2 mt-0.5">{{ notif.Message }}</p>
+                      </div>
+                    </div>
+                  </a>
+                {% empty %}
+                  <div class="p-6 text-center text-xs text-slate-400">
+                    No notifications yet.
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+
+          <!-- Language Switcher (EN / FIL) -->
+          <button @click="toggleLang()" type="button" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition" title="Switch Language">
+            <i data-lucide="globe" style="width: 14px; height: 14px;"></i>
+            <span x-text="lang === 'fil' ? '🇵🇭 Filipino' : '🇺🇸 English'">English</span>
+          </button>
+
+          <!-- Current Date Indicator -->
+          <div class="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1.5 rounded-md">
+            <i data-lucide="calendar" style="width: 13px; height: 13px;"></i>
+            <span>{% now "M d, Y" %}</span>
+          </div>
+
+          <!-- Mobile Logout Quick Action -->
+          <a href="{% url 'logout' %}" class="sm:hidden text-slate-500 hover:text-red-600 p-1" title="Logout">
+            <i data-lucide="log-out" style="width: 18px; height: 18px;"></i>
+          </a>
+        </div>
+      </header>
+
+      <main class="content-container">
+        <!-- Message Alerts -->
+        {% if messages %}
+          {% for message in messages %}
+            <div class="alert-box alert-{{ message.tags }}">
+              {% if message.tags == 'success' %}
+                <i data-lucide="check-circle-2"></i>
+              {% elif message.tags == 'error' %}
+                <i data-lucide="alert-octagon"></i>
+              {% elif message.tags == 'warning' %}
+                <i data-lucide="alert-triangle"></i>
+              {% else %}
+                <i data-lucide="info"></i>
+              {% endif %}
+              <span>{{ message }}</span>
+            </div>
+          {% endfor %}
+        {% endif %}
+
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <!-- Mobile Bottom Navigation Bar (Accessible 44px touch targets) -->
+  <nav class="mobile-bottom-nav">
+    <a href="{% url 'dashboard' %}" class="mobile-nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+      <i data-lucide="home"></i>
+      <span x-text="lang === 'fil' ? 'Tahanan' : 'Home'">Home</span>
+    </a>
+    <a href="{% url 'documents_list' %}" class="mobile-nav-item {% if 'document' in request.resolver_match.url_name %}active{% endif %}">
+      <i data-lucide="file-text"></i>
+      <span x-text="lang === 'fil' ? 'Dokumento' : 'Clearances'">Clearances</span>
+    </a>
+    <a href="{% url 'landing_page' %}#emergency" class="mobile-nav-item text-red-600">
+      <i data-lucide="phone-call"></i>
+      <span x-text="lang === 'fil' ? 'Saklolo' : 'Hotline'">Hotline</span>
+    </a>
+    <a href="{% url 'announcements_list' %}" class="mobile-nav-item {% if 'announcement' in request.resolver_match.url_name %}active{% endif %}">
+      <i data-lucide="megaphone"></i>
+      <span x-text="lang === 'fil' ? 'Balita' : 'Bulletins'">Bulletins</span>
+    </a>
+    {% if request.user.RoleID.RoleName in 'Admin,Staff' or request.user.is_superuser %}
+    <a href="{% url 'admin_registrations' %}" class="mobile-nav-item {% if 'registration' in request.resolver_match.url_name %}active{% endif %}">
+      <i data-lucide="user-check"></i>
+      <span x-text="lang === 'fil' ? 'Aplikasyon' : 'Approvals'">Approvals</span>
+    </a>
+    {% else %}
+    <a href="{% url 'registration_status' %}" class="mobile-nav-item {% if 'status' in request.resolver_match.url_name %}active{% endif %}">
+      <i data-lucide="search"></i>
+      <span x-text="lang === 'fil' ? 'Katayuan' : 'Track'">Track</span>
+    </a>
+    {% endif %}
+  </nav>
+
+  <!-- ========================================================================
+       BOTTOM TOAST NOTIFICATIONS
+       ======================================================================== -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 max-w-sm pointer-events-none" x-data="toastManager()">
+    <template x-for="toast in toasts" :key="toast.id">
+      <div class="pointer-events-auto bg-white rounded-xl shadow-2xl border p-4 flex items-start gap-3 transition-all duration-300 transform translate-y-0 text-xs"
+           :class="{
+             'border-emerald-300 bg-emerald-50/95 text-emerald-950': toast.type === 'success',
+             'border-red-300 bg-red-50/95 text-red-950': toast.type === 'error',
+             'border-amber-300 bg-amber-50/95 text-amber-950': toast.type === 'warning',
+             'border-sky-300 bg-sky-50/95 text-sky-950': toast.type === 'info'
+           }">
+        <div class="mt-0.5 shrink-0">
+          <template x-if="toast.type === 'success'">
+            <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          </template>
+          <template x-if="toast.type === 'error'">
+            <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          </template>
+          <template x-if="toast.type === 'warning'">
+            <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+          </template>
+          <template x-if="toast.type === 'info'">
+            <svg class="w-5 h-5 text-[#0b5cad]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          </template>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="font-bold text-slate-900 mb-0.5" x-text="toast.title" x-show="toast.title"></div>
+          <div class="text-slate-700 leading-relaxed" x-text="toast.message"></div>
+        </div>
+        <button @click="removeToast(toast.id)" class="text-slate-400 hover:text-slate-700 p-0.5 text-base font-bold leading-none shrink-0">&times;</button>
+      </div>
+    </template>
+  </div>
+
+  <!-- Shared Custom Dialog (Zero native dialogs, accessible, focus-managed) -->
+  {% include 'bims/shared_dialog.html' %}
+
+  <!-- Hidden Django Server Messages for Bottom Toasts -->
+  <div id="django-server-messages" style="display: none;" aria-hidden="true">
+    {% if messages %}
+      {% for msg in messages %}
+        {% if msg and msg|stringformat:"s" != "None" and msg|stringformat:"s" != "" %}
+          <span class="django-server-msg-item" data-message="{{ msg|escape }}" data-tags="{{ msg.tags|default:'info' }}"></span>
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+  </div>
+
+  <!-- Persistent Floating Unsaved Changes Pill -->
+  <div id="unsaved-changes-pill" class="hidden" role="status" aria-live="polite">
+    <span class="w-2 h-2 rounded-full bg-white animate-ping"></span>
+    <span>Unsaved changes in progress</span>
+  </div>
+
+  <script>
+    // --- 1. Toast Manager (Bottom Notifications) ---
+    function toastManager() {
+      return {
+        toasts: [],
+        init() {
+          window.showToast = (message, type = 'info', title = '') => {
+            if (!message || typeof message !== 'string') return;
+            const clean = message.trim();
+            if (!clean || clean.toLowerCase() === 'none' || clean.toLowerCase() === 'undefined' || clean.toLowerCase() === 'null') return;
+            const id = Date.now() + Math.random();
+            this.toasts.push({ id, message: clean, type, title });
+            setTimeout(() => {
+              this.removeToast(id);
+            }, 5500);
+          };
+
+          // Render server messages into bottom toasts safely without raw Django tags in JS
+          const msgElements = document.querySelectorAll('#django-server-messages .django-server-msg-item');
+          msgElements.forEach(el => {
+            const message = el.getAttribute('data-message');
+            const tags = el.getAttribute('data-tags') || 'info';
+            if (message) {
+              window.showToast(message, tags, '');
+            }
+          });
+        },
+        removeToast(id) {
+          this.toasts = this.toasts.filter(t => t.id !== id);
+        }
+      };
+    }
+
+    // --- 2. Comprehensive Dirty Form Changes & Navigation/Logout Guard ---
+    (function() {
+      window.isFormDirty = false;
+
+      window.markClean = function() {
+        window.isFormDirty = false;
+        document.body.classList.remove('has-unsaved-changes');
+        const pill = document.getElementById('unsaved-changes-pill');
+        if (pill) pill.classList.add('hidden');
+      };
+
+      window.markDirty = function() {
+        window.isFormDirty = true;
+        document.body.classList.add('has-unsaved-changes');
+        const pill = document.getElementById('unsaved-changes-pill');
+        if (pill) pill.classList.remove('hidden');
+      };
+
+      // Exclude buttons, search boxes, filters, and forms marked data-no-dirty
+      function isTrackableInput(target) {
+        if (!target) return false;
+        const type = (target.type || '').toLowerCase();
+        if (['submit', 'button', 'reset', 'hidden', 'image'].includes(type)) return false;
+        if (type === 'search' || target.name === 'q' || target.name === 'search' || target.hasAttribute('data-filter') || target.hasAttribute('data-no-dirty')) return false;
+        const form = target.closest('form');
+        if (!form || form.hasAttribute('data-no-dirty')) return false;
+        return true;
+      }
+
+      document.addEventListener('input', function(e) {
+        if (isTrackableInput(e.target)) {
+          window.markDirty();
+        }
+      });
+
+      document.addEventListener('change', function(e) {
+        if (isTrackableInput(e.target)) {
+          window.markDirty();
+        }
+      });
+
+      // Saving changes: clear dirty state immediately on submit
+      document.addEventListener('submit', function(e) {
+        window.markClean();
+      });
+
+      // Clear dirty state if a submit button is clicked
+      document.addEventListener('click', function(e) {
+        const submitBtn = e.target.closest('button[type="submit"], input[type="submit"]');
+        if (submitBtn) {
+          window.markClean();
+        }
+      }, true);
+
+      // Guard browser close / hard reload
+      window.addEventListener('beforeunload', function(e) {
+        if (window.isFormDirty) {
+          e.preventDefault();
+          e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+          return e.returnValue;
+        }
+      });
+
+      // Intercept navigation & Logout when unsaved changes exist
+      document.addEventListener('click', async function(e) {
+        if (!window.isFormDirty) return;
+
+        // If the click is a submit button, allow submission
+        if (e.target.closest('button[type="submit"], input[type="submit"]')) return;
+
+        // If clicking a [data-confirm] action (like Delete buttons), let data-confirm handler take precedence
+        if (e.target.closest('[data-confirm]')) return;
+
+        const link = e.target.closest('a[href]');
+        if (!link) return;
+
+        const href = link.getAttribute('href');
+        if (!href || href === '#' || href.startsWith('javascript:') || href.startsWith('#')) return;
+        if (link.getAttribute('target') === '_blank') return;
+        if (link.hasAttribute('download')) return;
+        if (link.hasAttribute('data-allow-dirty')) return;
+
+        // Detect if link is a Logout action
+        const isLogout = href.includes('logout') || link.classList.contains('btn-logout') || (link.getAttribute('title') || '').toLowerCase().includes('logout');
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (typeof window.customConfirm === 'function') {
+          const confirmed = await window.customConfirm({
+            title: isLogout ? 'Unsaved Changes on Log Out' : 'Unsaved Changes',
+            message: isLogout
+              ? 'You have unsaved changes that will be permanently lost if you log out now. Are you sure you want to discard your changes and log out?'
+              : 'You have unsaved modifications on this page. Leaving will discard all changes that have not been saved. Are you sure you want to leave?',
+            confirmText: isLogout ? 'Discard & Log Out' : 'Leave Without Saving',
+            cancelText: isLogout ? 'Stay and Save' : 'Keep Editing',
+            variant: isLogout ? 'danger' : 'warning',
+            triggerElement: link
+          });
+
+          if (confirmed) {
+            window.markClean();
+            window.location.href = link.href;
+          }
+        } else {
+          window.markClean();
+          window.location.href = link.href;
+        }
+      }, true);
+    })();
+
+    // --- 3. Clean Hover/Scrolling Scrollbar Listener ---
+    (function() {
+      let scrollTimer = null;
+      window.addEventListener('scroll', function() {
+        document.body.classList.add('is-scrolling');
+        clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(function() {
+          document.body.classList.remove('is-scrolling');
+        }, 800);
+      }, { passive: true });
+    })();
+
+    // --- 4. Universal Notification Click Spotlight (Standard UI/UX) ---
+    (function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const highlightId = urlParams.get('highlight');
+      const hash = window.location.hash;
+      let target = null;
+      if (highlightId) {
+        target = document.querySelector(`[data-highlight-id="${highlightId}"]`) ||
+                 document.getElementById(`item-${highlightId}`) ||
+                 document.getElementById(`req-${highlightId}`) ||
+                 document.getElementById(`reg-${highlightId}`);
+      }
+      if (!target && hash) {
+        try { target = document.querySelector(hash); } catch(e){}
+      }
+      if (target) {
+        setTimeout(function() {
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          target.classList.add('notification-spotlight');
+          setTimeout(function() {
+            target.classList.remove('notification-spotlight');
+          }, 3500);
+        }, 300);
+      }
+    })();
+
+    // --- 5. Shared Floating Action Menu (Teleported Outside Tables) ---
+    function actionMenu() {
+      return {
+        open: false,
+        coords: '',
+        toggle(e) {
+          if (this.open) {
+            this.open = false;
+            return;
+          }
+          window.dispatchEvent(new CustomEvent('close-all-action-menus'));
+
+          const btn = e.currentTarget.getBoundingClientRect();
+          const menuHeight = 150;
+          const right = Math.max(12, window.innerWidth - btn.right);
+
+          // If button is near the bottom of viewport, flip upward above the button!
+          let topStyle = '';
+          if (btn.bottom + menuHeight > window.innerHeight) {
+            topStyle = `top: ${Math.max(10, btn.top - menuHeight - 6)}px;`;
+          } else {
+            topStyle = `top: ${btn.bottom + 6}px;`;
+          }
+
+          this.coords = `${topStyle} right: ${right}px;`;
+          this.open = true;
+          this.$nextTick(() => {
+            if (window.lucide) lucide.createIcons();
+          });
+        },
+        close() {
+          this.open = false;
+        }
+      };
+    }
+
+    // Close all open menus when scrolling anywhere
+    window.addEventListener('scroll', function() {
+      window.dispatchEvent(new CustomEvent('close-all-action-menus'));
+    }, { passive: true, capture: true });
+
+    // Initialize Lucide Icons
+    document.addEventListener("DOMContentLoaded", function () {
+      lucide.createIcons();
+    });
+    document.body.addEventListener('htmx:afterSwap', function() {
+      lucide.createIcons();
+    });
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

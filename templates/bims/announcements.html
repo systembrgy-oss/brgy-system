@@ -1,0 +1,250 @@
+{% extends 'bims/base.html' %}
+
+{% block page_title %}Community Announcements & Emergency Notices{% endblock %}
+{% block page_icon %}<i data-lucide="megaphone"></i>{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 {% if role_name in 'Admin,Staff' %}lg:grid-cols-12{% endif %} gap-6"
+     x-data="{
+       editModal: false,
+       editId: null,
+       editTitle: '',
+       editCategory: 'Community Event',
+       editContent: '',
+       editEmergency: false,
+       editPinned: false,
+       openEdit(id, title, cat, content, isEmerg, isPin) {
+         this.editId = id;
+         this.editTitle = title;
+         this.editCategory = cat;
+         this.editContent = content;
+         this.editEmergency = isEmerg;
+         this.editPinned = isPin;
+         this.editModal = true;
+       }
+     }">
+  <!-- Left / Main Notices Feed -->
+  <div class="{% if role_name in 'Admin,Staff' %}lg:col-span-8{% else %}max-w-3xl mx-auto w-full{% endif %} space-y-4">
+    {% for ann in announcements %}
+      <div class="bg-white border {% if ann.IsEmergency %}border-l-4 border-l-red-600 border-slate-200{% elif ann.IsPinned %}border-l-4 border-l-sky-600 border-slate-200{% else %}border-slate-200{% endif %} rounded-xl p-5 shadow-sm space-y-3 relative">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <div class="flex items-center gap-2 flex-wrap">
+            {% if ann.IsPinned %}
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-100 text-[#0b5cad] border border-sky-200">
+                <i data-lucide="pin" style="width: 12px; height: 12px;"></i> PINNED BULLETIN
+              </span>
+            {% endif %}
+            {% if ann.IsEmergency %}
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-600 text-white">
+                <i data-lucide="alert-triangle" style="width: 12px; height: 12px;"></i> EMERGENCY ALERT
+              </span>
+            {% endif %}
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-700">
+              {{ ann.Category }}
+            </span>
+          </div>
+
+          <!-- Actions Toolbar for Admin/Staff -->
+          {% if role_name in 'Admin,Staff' %}
+            <div class="flex items-center gap-1.5 ml-auto">
+              <!-- Pin / Unpin Form -->
+              <form method="POST" class="inline">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="pin">
+                <input type="hidden" name="AnnouncementID" value="{{ ann.AnnouncementID }}">
+                <button type="submit"
+                        class="p-1.5 rounded hover:bg-slate-100 text-xs text-slate-500 hover:text-slate-800 transition"
+                        title="{% if ann.IsPinned %}Unpin from Top{% else %}Pin to Top of Feed{% endif %}">
+                  <i data-lucide="pin" style="width: 14px; height: 14px;" class="{% if ann.IsPinned %}text-[#0b5cad] fill-[#0b5cad]{% endif %}"></i>
+                </button>
+              </form>
+
+              <!-- Edit Button -->
+              <button type="button"
+                      @click="openEdit({{ ann.AnnouncementID }}, '{{ ann.Title|escapejs }}', '{{ ann.Category|escapejs }}', '{{ ann.Content|escapejs }}', {{ ann.IsEmergency|yesno:'true,false' }}, {{ ann.IsPinned|yesno:'true,false' }})"
+                      class="p-1.5 rounded hover:bg-slate-100 text-xs text-slate-500 hover:text-slate-800 transition"
+                      title="Edit Bulletin">
+                <i data-lucide="edit" style="width: 14px; height: 14px;"></i>
+              </button>
+
+              <!-- Delete Button with Shared Confirm Dialog -->
+              <form method="POST" class="inline">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="AnnouncementID" value="{{ ann.AnnouncementID }}">
+                <button type="submit"
+                        data-confirm="Delete announcement '{{ ann.Title }}'? This cannot be undone."
+                        data-confirm-title="Delete Bulletin"
+                        data-confirm-btn="Delete Bulletin"
+                        data-cancel-btn="Keep Bulletin"
+                        data-confirm-variant="danger"
+                        class="p-1.5 rounded hover:bg-red-50 text-xs text-red-500 hover:text-red-700 transition"
+                        title="Delete Announcement">
+                  <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                </button>
+              </form>
+            </div>
+          {% endif %}
+
+          <span class="text-[11px] text-slate-400 font-medium">{{ ann.PublishDate|date:"M d, Y - h:i A" }}</span>
+        </div>
+
+        <h3 class="text-base font-bold text-slate-900">{{ ann.Title }}</h3>
+        <p class="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{{ ann.Content }}</p>
+
+        <div class="pt-3 border-t border-slate-100 text-[11px] text-slate-400 flex items-center gap-1.5">
+          <i data-lucide="user" style="width: 13px; height: 13px;"></i>
+          <span>Posted by {{ ann.CreatedByUserID.first_name }} {{ ann.CreatedByUserID.last_name|default:ann.CreatedByUserID.username }} ({{ ann.CreatedByUserID.RoleID.RoleName|default:"Admin" }})</span>
+        </div>
+      </div>
+    {% empty %}
+      <div class="bg-white border border-slate-200 rounded-xl p-10 text-center text-xs text-slate-400">
+        <i data-lucide="bell-off" class="mx-auto mb-2 text-slate-300" style="width: 32px; height: 32px;"></i>
+        <p>No community notices or alerts published at this time.</p>
+      </div>
+    {% endfor %}
+  </div>
+
+  <!-- Right: Create Announcement Form (Admin / Staff Only) -->
+  {% if role_name in 'Admin,Staff' %}
+    <div class="lg:col-span-4">
+      <div class="card sticky top-20">
+        <div class="card-header">
+          <div class="card-title">
+            <i data-lucide="plus-circle" class="text-[#0B5CAD]"></i>
+            <span>Broadcast Bulletin</span>
+          </div>
+        </div>
+        <div class="card-body">
+          <form method="POST" class="space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Notice Title *
+              </label>
+              <input type="text" name="Title" class="form-control w-full min-h-[44px]" required placeholder="e.g. Libreng Bakuna para sa Bata">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Category *
+              </label>
+              <select name="Category" class="form-control w-full min-h-[44px]" required>
+                <option value="Community Event">Community Event / Assembly</option>
+                <option value="Emergency">Emergency / Disaster Advisory</option>
+                <option value="Health">Health & Sanitation</option>
+                <option value="Ordinance">Barangay Ordinance / Regulation</option>
+                <option value="Welfare">Ayuda / Welfare Distribution</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Notice Content *
+              </label>
+              <textarea name="Content" class="form-control w-full text-xs" rows="5" required placeholder="Write message to residents..."></textarea>
+            </div>
+
+            <div class="space-y-2">
+              <div class="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <label class="flex items-center gap-2 text-xs font-bold text-red-900 cursor-pointer">
+                  <input type="checkbox" name="IsEmergency" value="1" class="rounded text-red-600 focus:ring-red-600">
+                  <span>Mark as High-Priority Emergency Alert</span>
+                </label>
+              </div>
+
+              <div class="p-3 bg-sky-50 border border-sky-200 rounded-lg">
+                <label class="flex items-center gap-2 text-xs font-bold text-[#0b5cad] cursor-pointer">
+                  <input type="checkbox" name="IsPinned" value="1" class="rounded text-[#0b5cad] focus:ring-[#0b5cad]">
+                  <span>Pin Bulletin to the Top of the Feed</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- PRIMARY ACTION FIRST -->
+            <button type="submit" class="btn btn-primary w-full min-h-[44px] font-bold">
+              <i data-lucide="send" style="width: 15px; height: 15px;"></i>
+              <span>Broadcast Bulletin</span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- Edit Announcement Modal -->
+  <div x-cloak x-show="editModal"
+       class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+       @keydown.escape.window="editModal = false"
+       @click.self="editModal = false"
+       role="dialog"
+       aria-modal="true">
+    <div class="w-full max-w-lg bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+      <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-sky-100 text-[#0b5cad] flex items-center justify-center">
+            <i data-lucide="edit" class="w-4 h-4"></i>
+          </div>
+          <h3 class="text-sm font-bold text-slate-900">Edit Announcement</h3>
+        </div>
+        <button type="button" @click="editModal = false" class="text-xs font-semibold text-slate-400 hover:text-slate-700 px-2 py-1 rounded">Close</button>
+      </div>
+
+      <form method="POST" class="p-5 space-y-4">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="edit">
+        <input type="hidden" name="AnnouncementID" :value="editId">
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Notice Title *</label>
+          <input type="text" name="Title" x-model="editTitle" class="form-control w-full min-h-[44px]" required>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Category *</label>
+          <select name="Category" x-model="editCategory" class="form-control w-full min-h-[44px]" required>
+            <option value="Community Event">Community Event / Assembly</option>
+            <option value="Emergency">Emergency / Disaster Advisory</option>
+            <option value="Health">Health & Sanitation</option>
+            <option value="Ordinance">Barangay Ordinance / Regulation</option>
+            <option value="Welfare">Ayuda / Welfare Distribution</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Notice Content *</label>
+          <textarea name="Content" x-model="editContent" class="form-control w-full text-xs" rows="5" required></textarea>
+        </div>
+
+        <div class="space-y-2">
+          <div class="p-3 bg-red-50 border border-red-200 rounded-lg">
+            <label class="flex items-center gap-2 text-xs font-bold text-red-900 cursor-pointer">
+              <input type="checkbox" name="IsEmergency" value="1" :checked="editEmergency" @change="editEmergency = $event.target.checked" class="rounded text-red-600 focus:ring-red-600">
+              <span>Mark as High-Priority Emergency Alert</span>
+            </label>
+          </div>
+
+          <div class="p-3 bg-sky-50 border border-sky-200 rounded-lg">
+            <label class="flex items-center gap-2 text-xs font-bold text-[#0b5cad] cursor-pointer">
+              <input type="checkbox" name="IsPinned" value="1" :checked="editPinned" @change="editPinned = $event.target.checked" class="rounded text-[#0b5cad] focus:ring-[#0b5cad]">
+              <span>Pin Bulletin to the Top of the Feed</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- PRIMARY ACTION FIRST -->
+        <div class="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-2.5">
+          <button type="submit" class="btn btn-primary w-full sm:w-auto font-bold px-5 min-h-[40px]">
+            <span>Save Changes</span>
+          </button>
+          <button type="button" @click="editModal = false" class="btn btn-secondary w-full sm:w-auto min-h-[40px]">
+            <span>Cancel</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

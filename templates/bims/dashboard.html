@@ -1,0 +1,491 @@
+{% extends 'bims/base.html' %}
+
+{% block page_title %}Dashboard{% endblock %}
+{% block page_icon %}<i data-lucide="layout-dashboard"></i>{% endblock %}
+
+{% block page_actions %}
+  {% if role_name in 'Admin,Staff' %}
+    <div class="flex items-center gap-2">
+      <a href="{% url 'resident_create' %}" class="btn btn-secondary btn-sm min-h-[38px] px-3 font-semibold border-slate-300">
+        <i data-lucide="user-plus" style="width: 14px; height: 14px;"></i>
+        <span>Add Resident</span>
+      </a>
+      <a href="{% url 'document_request_create' %}" class="btn btn-primary btn-sm min-h-[38px] px-4 font-bold bg-[#0b5cad] hover:bg-[#084887]">
+        <i data-lucide="file-plus" style="width: 14px; height: 14px;"></i>
+        <span>Issue Document</span>
+      </a>
+    </div>
+  {% else %}
+    <a href="{% url 'document_request_create' %}" class="btn btn-primary btn-sm min-h-[38px] px-4 font-bold bg-[#0b5cad]">
+      <i data-lucide="file-plus" style="width: 14px; height: 14px;"></i>
+      <span>Request Clearance</span>
+    </a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  {% if role_name in 'Admin,Staff' %}
+    <!-- 1. Advisory Banner (Matching Mockup) -->
+    {% if emergency_alerts %}
+      {% for alert in emergency_alerts %}
+        <div class="mb-5 p-3.5 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between text-xs text-red-900">
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-red-700 uppercase">Emergency Advisory:</span>
+            <span><strong>{{ alert.Title }}:</strong> {{ alert.Content|truncatechars:100 }}</span>
+          </div>
+          <a href="{% url 'announcements_list' %}" class="font-bold text-red-700 hover:underline shrink-0 ml-3">View</a>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="mb-5 p-3.5 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between text-xs text-red-900">
+        <div class="flex items-center gap-2">
+          <span class="font-bold text-red-700">Barangay Advisory:</span>
+          <span>Official administrative portal active. 24/7 Hotline: <strong>{{ barangay_info.ContactNumber|default:"0917-888-BIMS" }}</strong></span>
+        </div>
+        <a href="{% url 'announcements_list' %}" class="font-bold text-red-700 hover:underline shrink-0 ml-3">View</a>
+      </div>
+    {% endif %}
+
+    <!-- 2. Top Metric Cards (4 Horizontal Cards) -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <!-- Total Residents -->
+      <div class="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col justify-between">
+        <div class="text-xs font-medium text-slate-500">Total residents</div>
+        <div class="text-3xl font-bold text-slate-900 my-1">{{ total_residents }}</div>
+        <div class="text-xs font-semibold text-emerald-600 flex items-center gap-1">
+          <i data-lucide="check" style="width: 12px; height: 12px;"></i>
+          <span>{{ total_voters }} registered voters</span>
+        </div>
+      </div>
+
+      <!-- Households -->
+      <div class="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col justify-between">
+        <div class="text-xs font-medium text-slate-500">Households</div>
+        <div class="text-3xl font-bold text-slate-900 my-1">{{ total_households }}</div>
+        <div class="text-xs text-slate-500">Across {{ purok_list.count|default:"4" }} puroks</div>
+      </div>
+
+      <!-- Pending Clearances (Highlighted with amber border as in mockup) -->
+      <div class="bg-white border-2 border-amber-400 rounded-lg p-4 shadow-sm flex flex-col justify-between bg-amber-50/20">
+        <div class="text-xs font-medium text-slate-600">Pending clearances</div>
+        <div class="text-3xl font-bold text-slate-900 my-1">{{ pending_requests }}</div>
+        <div class="text-xs font-semibold text-amber-700">Awaiting review and fee</div>
+      </div>
+
+      <!-- Active Blotter Cases -->
+      <div class="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col justify-between">
+        <div class="text-xs font-medium text-slate-500">Active blotter cases</div>
+        <div class="text-3xl font-bold text-slate-900 my-1">{{ active_incidents }}</div>
+        <div class="text-xs text-slate-500">Under Lupon mediation</div>
+      </div>
+    </div>
+
+    <!-- 3. Main Split Grid (Left: Actions & Requests, Right: Bulletins & Purok Bars) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
+      <!-- Left Column (8 cols): Needs Attention & Recent Document Requests -->
+      <div class="lg:col-span-8 space-y-6">
+        
+        <!-- "Needs your attention" Card -->
+        <div class="bg-white border border-slate-200 rounded-lg p-5 shadow-sm">
+          <h2 class="text-sm font-bold text-slate-900 mb-3">Needs your attention</h2>
+          
+          <div class="space-y-3">
+            <!-- Attention Item 1: Pending Clearances -->
+            {% for item in pending_attention_requests %}
+              <div class="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-slate-50">
+                <div>
+                  <div class="font-bold text-xs text-slate-900">{{ item.ResidentID.full_name }}</div>
+                  <div class="text-xs text-slate-500">{{ item.DocumentTypeID.DocumentTypeName }} &middot; awaiting review</div>
+                </div>
+                <a href="{% url 'document_process' item.RequestID %}" class="btn btn-primary btn-sm text-xs font-bold bg-[#0b5cad] hover:bg-[#084887] px-4 min-h-[34px]">
+                  Review
+                </a>
+              </div>
+            {% empty %}
+              <div class="text-xs text-slate-400 py-2">No pending clearance reviews currently waiting.</div>
+            {% endfor %}
+
+            <!-- Attention Item 2: Active Blotter Mediation -->
+            {% for inc in active_attention_incidents %}
+              <div class="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-slate-50">
+                <div>
+                  <div class="font-bold text-xs text-slate-900">Blotter case: #{{ inc.IncidentID }} - {{ inc.IncidentType }}</div>
+                  <div class="text-xs text-slate-500">Complainant: {{ inc.ComplainantResidentID.full_name }} &middot; {{ inc.CaseStatus }}</div>
+                </div>
+                <a href="{% url 'incident_detail' inc.IncidentID %}" class="btn btn-secondary btn-sm text-xs font-semibold px-3 min-h-[34px] border-slate-300">
+                  Open case
+                </a>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- "Recent document requests" Card -->
+        <div class="bg-white border border-slate-200 rounded-lg p-5 shadow-sm">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-bold text-slate-900">Recent document requests</h2>
+            <a href="{% url 'documents_list' %}" class="text-xs font-semibold text-[#0b5cad] hover:underline">View all</a>
+          </div>
+
+          <div class="table-responsive">
+            <table class="custom-table w-full text-left text-xs">
+              <thead>
+                <tr class="border-b border-slate-200 text-slate-400 uppercase text-[11px]">
+                  <th class="py-2.5 font-bold">Applicant</th>
+                  <th class="py-2.5 font-bold">Document</th>
+                  <th class="py-2.5 font-bold">Status</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                {% for req in recent_requests %}
+                  <tr>
+                    <td class="py-3 font-semibold text-slate-900">{{ req.ResidentID.full_name }}</td>
+                    <td class="py-3 text-slate-600">{{ req.DocumentTypeID.DocumentTypeName }}</td>
+                    <td class="py-3">
+                      {% if req.RequestStatus == 'Approved' or req.RequestStatus == 'Released' %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-green-100 text-green-800">
+                          {{ req.RequestStatus }}
+                        </span>
+                      {% elif req.RequestStatus == 'Pending' %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">
+                          Pending
+                        </span>
+                      {% else %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-800">
+                          {{ req.RequestStatus }}
+                        </span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="3" class="text-center text-slate-400 py-4">No recent document requests.</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 4. Visual Demographic & Financial Analytics (PRESERVED) -->
+        <div class="bg-white border border-slate-200 rounded-lg p-5 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <div class="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <i data-lucide="pie-chart" class="text-[#0b5cad]" style="width: 16px; height: 16px;"></i>
+              <span>Demographic Sectors & Revenue Analytics</span>
+            </div>
+            <span class="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200">
+              Total Revenue: ₱{{ total_revenue_collected|floatformat:2 }}
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Demographic Sectors Donut Chart -->
+            <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+              <div class="text-xs font-bold text-slate-700 mb-2">Priority Sectors Ratio</div>
+              <div style="height: 190px;">
+                <canvas id="sectorChart"></canvas>
+              </div>
+            </div>
+
+            <!-- Voter vs Non-Voter Pie Chart -->
+            <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+              <div class="text-xs font-bold text-slate-700 mb-2">Registered Voters Distribution</div>
+              <div style="height: 190px;">
+                <canvas id="voterChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column (4 cols): Bulletins & Residents by Purok -->
+      <div class="lg:col-span-4 space-y-6">
+        
+        <!-- "Bulletins" Card -->
+        <div class="bg-white border border-slate-200 rounded-lg p-5 shadow-sm">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-bold text-slate-900">Bulletins</h2>
+            <a href="{% url 'announcements_list' %}" class="text-xs font-semibold text-[#0b5cad] hover:underline">All</a>
+          </div>
+
+          <div class="space-y-3">
+            {% for ann in announcements|slice:":3" %}
+              <div class="p-3 rounded-lg border {% if ann.IsEmergency %}border-blue-400 bg-blue-50/20{% else %}border-slate-100 bg-slate-50{% endif %}">
+                <div class="text-[10px] font-bold text-slate-400 mb-1">
+                  {% if ann.IsEmergency %}<span class="text-red-600 font-bold">Emergency &middot;</span>{% else %}{{ ann.Category }} &middot;{% endif %}
+                  {{ ann.PublishDate|timesince }} ago
+                </div>
+                <div class="font-bold text-xs text-slate-900 leading-snug">{{ ann.Title }}</div>
+                <div class="text-[11px] text-slate-600 mt-1 line-clamp-2 leading-relaxed">{{ ann.Content }}</div>
+              </div>
+            {% empty %}
+              <div class="text-xs text-slate-400 py-3 text-center">No active bulletins published.</div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- "Residents by purok" Horizontal Bar Graph (Matching Mockup) -->
+        <div class="bg-white border border-slate-200 rounded-lg p-5 shadow-sm">
+          <h2 class="text-sm font-bold text-slate-900 mb-4">Residents by purok</h2>
+
+          <div class="space-y-3 text-xs">
+            {% for p in purok_list %}
+              <div>
+                <div class="flex items-center justify-between mb-1 font-semibold text-slate-700">
+                  <span>{{ p.PurokName }}</span>
+                  <span class="font-bold text-slate-900">{{ p.pop|default:0 }}</span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                  {% widthratio p.pop total_residents 100 as pct %}
+                  <div class="bg-[#0b5cad] h-2 rounded-full transition-all duration-500" data-pct="{{ pct|default:0 }}" :style="'width: ' + $el.dataset.pct + '%'"></div>
+                </div>
+              </div>
+            {% empty %}
+              <div class="text-xs text-slate-400 py-2">No purok population data mapped yet.</div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Priority Sectors Count Widget -->
+        <div class="bg-white border border-slate-200 rounded-lg p-5 shadow-sm">
+          <h2 class="text-sm font-bold text-slate-900 mb-3">Priority Demographics</h2>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div class="p-2.5 rounded bg-purple-50 text-purple-900 border border-purple-100">
+              <span class="block text-[10px] text-purple-600 font-bold uppercase">Seniors</span>
+              <strong class="text-base font-black">{{ senior_count }}</strong>
+            </div>
+            <div class="p-2.5 rounded bg-sky-50 text-sky-900 border border-sky-100">
+              <span class="block text-[10px] text-sky-600 font-bold uppercase">PWD</span>
+              <strong class="text-base font-black">{{ pwd_count }}</strong>
+            </div>
+            <div class="p-2.5 rounded bg-pink-50 text-pink-900 border border-pink-100">
+              <span class="block text-[10px] text-pink-600 font-bold uppercase">Solo Parents</span>
+              <strong class="text-base font-black">{{ solo_parent_count }}</strong>
+            </div>
+            <div class="p-2.5 rounded bg-emerald-50 text-emerald-900 border border-emerald-100">
+              <span class="block text-[10px] text-emerald-600 font-bold uppercase">4Ps Beneficiaries</span>
+              <strong class="text-base font-black">{{ four_ps_count }}</strong>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  {% else %}
+    <!-- Resident / People Citizen Portal View -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- Citizen Profile Card -->
+      <div class="lg:col-span-4">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <i data-lucide="user" class="text-[#0B5CAD]"></i>
+              <span x-text="lang === 'fil' ? 'Impormasyon ng Mamamayan' : 'Citizen Profile'">Citizen Profile</span>
+            </div>
+          </div>
+          <div class="card-body">
+            {% if resident %}
+              <div class="text-center mb-5">
+                <div class="w-16 h-16 rounded-full bg-[#ebf5ff] text-[#0B5CAD] flex items-center justify-center mx-auto mb-2 text-xl font-black">
+                  {{ resident.FirstName|first }}{{ resident.LastName|first }}
+                </div>
+                <h3 class="text-base font-bold text-slate-900">{{ resident.full_name }}</h3>
+                <p class="text-xs text-slate-400">Citizen ID: #{{ resident.ResidentID }}</p>
+              </div>
+
+              <div class="space-y-2.5 text-xs text-slate-700">
+                <div><span class="text-slate-400 block text-[11px]">RESIDENCE</span><strong>{{ resident.HouseholdID.StreetAddress }}, {{ resident.HouseholdID.PurokID.PurokName }}</strong></div>
+                <div><span class="text-slate-400 block text-[11px]">HOUSEHOLD</span><strong>{{ resident.HouseholdID.HouseholdNumber }} ({{ resident.RelationshipToHead }})</strong></div>
+                <div><span class="text-slate-400 block text-[11px]">CIVIL STATUS</span><strong>{{ resident.CivilStatus }}</strong></div>
+                <div>
+                  <span class="text-slate-400 block text-[11px]">VOTER REGISTRATION</span>
+                  {% if resident.IsVoter %}
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-green-100 text-green-800">
+                      <i data-lucide="check" style="width: 11px; height: 11px;"></i> Registered Voter
+                    </span>
+                  {% else %}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-800">
+                      Non-Voter
+                    </span>
+                  {% endif %}
+                </div>
+                <div><span class="text-slate-400 block text-[11px]">CONTACT</span><strong>{{ resident.ContactNo|default:"None listed" }}</strong></div>
+              </div>
+            {% else %}
+              <p class="text-xs text-slate-400">No linked resident profile found.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- My Requests & Clearances -->
+      <div class="lg:col-span-8">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <i data-lucide="file-check-2" class="text-[#0B5CAD]"></i>
+              <span x-text="lang === 'fil' ? 'Aking mga Kahilingan sa Dokumento' : 'My Document & Clearance Requests'">My Document & Clearance Requests</span>
+            </div>
+            <a href="{% url 'document_request_create' %}" class="btn btn-primary btn-sm min-h-[38px] px-3 font-bold">
+              <i data-lucide="plus" style="width: 14px; height: 14px;"></i>
+              <span x-text="lang === 'fil' ? 'Bagong Aplikasyon' : 'New Request'">New Request</span>
+            </a>
+          </div>
+
+          <!-- Desktop Table -->
+          <div class="table-responsive hidden sm:block">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Document Type</th>
+                  <th>Date</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for req in my_requests %}
+                  <tr>
+                    <td>
+                      <strong class="text-slate-900 text-xs">{{ req.DocumentTypeID.DocumentTypeName }}</strong>
+                      <div class="text-[11px] text-slate-400">Purpose: {{ req.Purpose }}</div>
+                    </td>
+                    <td class="text-xs text-slate-500">{{ req.RequestDate|date:"M d, Y" }}</td>
+                    <td>
+                      {% if req.RequestStatus == 'Approved' or req.RequestStatus == 'Released' %}
+                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800">
+                          <i data-lucide="check" style="width: 11px; height: 11px;"></i> {{ req.RequestStatus }}
+                        </span>
+                      {% elif req.RequestStatus == 'Pending' %}
+                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+                          <i data-lucide="clock" style="width: 11px; height: 11px;"></i> Pending
+                        </span>
+                      {% else %}
+                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800">
+                          {{ req.RequestStatus }}
+                        </span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if req.RequestStatus in 'Approved,Released' %}
+                        <a href="{% url 'document_view' req.RequestID %}" class="btn btn-emerald btn-sm" target="_blank">
+                          <i data-lucide="printer" style="width: 13px; height: 13px;"></i> Certificate
+                        </a>
+                      {% else %}
+                        <span class="text-xs text-slate-400">Under Review</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="4" class="text-center text-slate-400 py-8 text-xs">
+                      You have not made any document requests yet.
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Mobile Cards -->
+          <div class="sm:hidden p-4 space-y-3">
+            {% for req in my_requests %}
+              <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
+                <div class="flex items-center justify-between">
+                  <strong class="text-xs font-bold text-slate-900">{{ req.DocumentTypeID.DocumentTypeName }}</strong>
+                  <span class="text-[11px] font-bold {% if req.RequestStatus in 'Approved,Released' %}text-green-700{% elif req.RequestStatus == 'Pending' %}text-amber-700{% else %}text-red-700{% endif %}">
+                    {{ req.RequestStatus }}
+                  </span>
+                </div>
+                <p class="text-[11px] text-slate-500">Purpose: {{ req.Purpose }}</p>
+                <div class="flex items-center justify-between pt-2 border-t border-slate-200">
+                  <span class="text-[10px] text-slate-400">{{ req.RequestDate|date:"M d, Y" }}</span>
+                  {% if req.RequestStatus in 'Approved,Released' %}
+                    <a href="{% url 'document_view' req.RequestID %}" class="btn btn-emerald btn-sm" target="_blank">
+                      <i data-lucide="printer" style="width: 12px; height: 12px;"></i> View
+                    </a>
+                  {% else %}
+                    <span class="text-[11px] text-slate-400">Queued</span>
+                  {% endif %}
+                </div>
+              </div>
+            {% empty %}
+              <div class="text-center text-slate-400 py-6 text-xs">
+                You have not made any document requests yet.
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}
+
+{% block scripts %}
+  {% if role_name in 'Admin,Staff' %}
+    {{ chart_sector_labels|json_script:"sector-chart-labels" }}
+    {{ chart_sector_data|json_script:"sector-chart-data" }}
+    {{ chart_voter_labels|json_script:"voter-chart-labels" }}
+    {{ chart_voter_data|json_script:"voter-chart-data" }}
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        // 1. Sector Donut Chart
+        const sectorCtx = document.getElementById('sectorChart');
+        const sectorLabelsEl = document.getElementById('sector-chart-labels');
+        const sectorDataEl = document.getElementById('sector-chart-data');
+        if (sectorCtx && sectorLabelsEl && sectorDataEl) {
+          const sectorLabels = JSON.parse(sectorLabelsEl.textContent || '[]');
+          const sectorData = JSON.parse(sectorDataEl.textContent || '[]');
+          new Chart(sectorCtx, {
+            type: 'doughnut',
+            data: {
+              labels: sectorLabels,
+              datasets: [{
+                data: sectorData,
+                backgroundColor: ['#7c3aed', '#0284c7', '#db2777', '#059669'],
+                borderWidth: 2,
+                borderColor: '#ffffff'
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }
+            }
+          });
+        }
+
+        // 2. Voter Distribution Pie Chart
+        const voterCtx = document.getElementById('voterChart');
+        const voterLabelsEl = document.getElementById('voter-chart-labels');
+        const voterDataEl = document.getElementById('voter-chart-data');
+        if (voterCtx && voterLabelsEl && voterDataEl) {
+          const voterLabels = JSON.parse(voterLabelsEl.textContent || '[]');
+          const voterData = JSON.parse(voterDataEl.textContent || '[]');
+          new Chart(voterCtx, {
+            type: 'pie',
+            data: {
+              labels: voterLabels,
+              datasets: [{
+                data: voterData,
+                backgroundColor: ['#16a34a', '#cbd5e1'],
+                borderWidth: 2,
+                borderColor: '#ffffff'
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }
+            }
+          });
+        }
+      });
+    </script>
+  {% endif %}
+{% endblock %}

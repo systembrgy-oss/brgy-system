@@ -1,0 +1,281 @@
+{% extends 'bims/base.html' %}
+
+{% block page_title %}Role-Based Access Control (RBAC) & Users{% endblock %}
+{% block page_icon %}<i data-lucide="user-cog"></i>{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6"
+     x-data="{
+       editModal: false,
+       editUserId: null,
+       editUsername: '',
+       editRoleId: '',
+       editEmail: '',
+       newPassword: '',
+       openEditUser(id, username, roleId, email) {
+         this.editUserId = id;
+         this.editUsername = username;
+         this.editRoleId = roleId;
+         this.editEmail = email;
+         this.newPassword = '';
+         this.editModal = true;
+       }
+     }">
+  <!-- User List (8 cols) -->
+  <div class="lg:col-span-8 card">
+    <div class="card-header flex items-center justify-between">
+      <div class="card-title">
+        <i data-lucide="users" class="text-[#0B5CAD]"></i>
+        <span>System Users & Role Privileges</span>
+      </div>
+      <span class="text-xs text-slate-500 font-semibold">{{ users.count }} Total User{{ users.count|pluralize }}</span>
+    </div>
+    <div class="table-responsive">
+      <table class="custom-table">
+        <thead>
+          <tr>
+            <th>Username & Email</th>
+            <th>Role</th>
+            <th>Linked Resident</th>
+            <th>Account Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+            <tr class="{% if not u.is_active %}opacity-60 bg-slate-50/75{% endif %}">
+              <td>
+                <div class="flex items-center gap-2">
+                  <div class="w-7 h-7 rounded-full bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center shrink-0">
+                    {{ u.username|make_list|first|upper }}
+                  </div>
+                  <div>
+                    <strong class="text-slate-900 text-xs block">{{ u.username }}</strong>
+                    <span class="text-[11px] text-slate-400">{{ u.email|default:"No email set" }}</span>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <span class="badge 
+                  {% if u.RoleID.RoleName == 'Admin' %}badge-rejected
+                  {% elif u.RoleID.RoleName == 'Staff' %}badge-mediation
+                  {% else %}badge-approved{% endif %} font-bold">
+                  {{ u.RoleID.RoleName|default:"Superuser" }}
+                </span>
+                {% if u.is_staff %}
+                  <span class="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 ml-1">Staff Access</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if u.ResidentID %}
+                  <a href="{% url 'resident_detail' u.ResidentID.ResidentID %}" class="text-xs font-semibold text-[#0B5CAD] hover:underline block">
+                    {{ u.ResidentID.full_name }}
+                  </a>
+                  <span class="text-[11px] text-slate-400 font-mono">{{ u.ResidentID.HouseholdID.HouseholdNumber }}</span>
+                {% else %}
+                  <span class="text-slate-400 text-xs">Administrative Profile</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if u.is_active %}
+                  <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
+                  </span>
+                {% else %}
+                  <span class="inline-flex items-center gap-1 text-[11px] font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                    <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> Disabled
+                  </span>
+                {% endif %}
+              </td>
+              <td class="text-right">
+                <!-- Standard UI/UX Floating Three-Dots Dropdown Menu (Teleported Outside Tables) -->
+                <div class="relative inline-block text-left" x-data="actionMenu()" @close-all-action-menus.window="close()">
+                  <button type="button"
+                          @click="toggle($event)"
+                          class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition border border-transparent hover:border-slate-200"
+                          title="More Actions">
+                    <i data-lucide="more-vertical" style="width: 16px; height: 16px;"></i>
+                  </button>
+                  <template x-teleport="body">
+                    <div x-show="open"
+                         x-cloak
+                         @click.away="close()"
+                         @keydown.escape.window="close()"
+                         :style="coords"
+                         class="fixed z-[99999] w-48 bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 overflow-hidden transform transition-all text-left"
+                         x-transition:enter="transition ease-out duration-100"
+                         x-transition:enter-start="opacity-0 scale-95"
+                         x-transition:enter-end="opacity-100 scale-100">
+                      <button type="button"
+                              @click="openEditUser({{ u.id }}, '{{ u.username|escapejs }}', '{{ u.RoleID.RoleID|default:'' }}', '{{ u.email|escapejs }}'); close();"
+                              class="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                        <i data-lucide="edit-3" class="w-3.5 h-3.5 text-slate-400"></i>
+                        <span>Edit Privileges</span>
+                      </button>
+
+                      {% if u.id != request.user.id %}
+                        <form method="POST" class="block w-full">
+                          {% csrf_token %}
+                          <input type="hidden" name="action" value="toggle_status">
+                          <input type="hidden" name="user_id" value="{{ u.id }}">
+                          <button type="submit"
+                                  @click="close()"
+                                  data-confirm="{% if u.is_active %}Disable user account '{{ u.username }}'? They will be immediately blocked from logging into the portal.{% else %}Re-activate user account '{{ u.username }}'?{% endif %}"
+                                  data-confirm-title="{% if u.is_active %}Disable User Account{% else %}Activate User Account{% endif %}"
+                                  data-confirm-btn="{% if u.is_active %}Disable Account{% else %}Activate Account{% endif %}"
+                                  data-cancel-btn="Cancel"
+                                  data-confirm-variant="{% if u.is_active %}danger{% else %}emerald{% endif %}"
+                                  class="w-full text-left px-3.5 py-2 text-xs font-semibold {% if u.is_active %}text-amber-700 hover:bg-amber-50{% else %}text-emerald-700 hover:bg-emerald-50{% endif %} flex items-center gap-2">
+                            {% if u.is_active %}
+                              <i data-lucide="user-x" class="w-3.5 h-3.5 text-amber-500"></i>
+                              <span>Deactivate User</span>
+                            {% else %}
+                              <i data-lucide="user-check" class="w-3.5 h-3.5 text-emerald-500"></i>
+                              <span>Activate User</span>
+                            {% endif %}
+                          </button>
+                        </form>
+
+                        <div class="my-1 border-t border-slate-100"></div>
+
+                        <form method="POST" class="block w-full">
+                          {% csrf_token %}
+                          <input type="hidden" name="action" value="delete_user">
+                          <input type="hidden" name="user_id" value="{{ u.id }}">
+                          <button type="submit"
+                                  @click="close()"
+                                  data-confirm="Permanently delete user account '{{ u.username }}'? This action cannot be undone."
+                                  data-confirm-title="Delete User Account"
+                                  data-confirm-btn="Delete User"
+                                  data-cancel-btn="Keep Account"
+                                  data-confirm-variant="danger"
+                                  class="w-full text-left px-3.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5 text-red-500"></i>
+                            <span>Delete User</span>
+                          </button>
+                        </form>
+                      {% endif %}
+                    </div>
+                  </template>
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5" class="text-center text-slate-400 py-10 text-xs">No users found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Create User Form (4 cols) -->
+  <div class="lg:col-span-4 card">
+    <div class="card-header">
+      <div class="card-title">
+        <i data-lucide="user-plus" class="text-[#0B5CAD]"></i>
+        <span>Create User Account</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <form method="POST" class="space-y-4">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create">
+
+        <div class="form-group mb-0">
+          <label class="form-label text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Username *</label>
+          <input type="text" name="username" class="form-control min-h-[44px]" required placeholder="e.g. jdelacruz">
+        </div>
+
+        <div class="form-group mb-0">
+          <label class="form-label text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Initial Password *</label>
+          <input type="password" name="password" class="form-control min-h-[44px]" required placeholder="Minimum 8 characters">
+        </div>
+
+        <div class="form-group mb-0">
+          <label class="form-label text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Role Assignment *</label>
+          <select name="RoleID" class="form-control min-h-[44px]" required>
+            <option value="">-- Choose Role --</option>
+            {% for r in roles %}
+              <option value="{{ r.RoleID }}">{{ r.RoleName }} ({{ r.RoleDescription }})</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group mb-0">
+          <label class="form-label text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Link Resident (For Citizen Portal)</label>
+          <select name="ResidentID" class="form-control min-h-[44px]">
+            <option value="">None (Administrative / Staff Account)</option>
+            {% for res in residents %}
+              <option value="{{ res.ResidentID }}">{{ res.full_name }} (HH #{{ res.HouseholdID.HouseholdNumber }})</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- PRIMARY ACTION FIRST -->
+        <button type="submit" class="btn btn-primary w-full min-h-[44px] font-bold mt-2">
+          <i data-lucide="shield-check" style="width: 16px; height: 16px;"></i>
+          <span>Create Account</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit User Modal -->
+  <div x-cloak x-show="editModal"
+       class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+       @keydown.escape.window="editModal = false"
+       @click.self="editModal = false"
+       role="dialog"
+       aria-modal="true">
+    <div class="w-full max-w-md bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden transform transition-all">
+      <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-sky-100 text-[#0b5cad] flex items-center justify-center">
+            <i data-lucide="user-cog" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900">Edit User Privileges</h3>
+            <p class="text-[11px] text-slate-400" x-text="'User: ' + editUsername"></p>
+          </div>
+        </div>
+        <button type="button" @click="editModal = false" class="text-xs font-semibold text-slate-400 hover:text-slate-700 px-2 py-1 rounded">Close</button>
+      </div>
+
+      <form method="POST" class="p-5 space-y-4">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="edit_user">
+        <input type="hidden" name="user_id" :value="editUserId">
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Role Privileges *</label>
+          <select name="RoleID" x-model="editRoleId" class="form-control w-full min-h-[44px]" required>
+            {% for r in roles %}
+              <option value="{{ r.RoleID }}">{{ r.RoleName }} ({{ r.RoleDescription }})</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Email Address</label>
+          <input type="email" name="email" x-model="editEmail" class="form-control w-full min-h-[44px]" placeholder="user@gmail.com">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Reset Password (Optional)</label>
+          <input type="password" name="new_password" x-model="newPassword" class="form-control w-full min-h-[44px]" placeholder="Leave blank to keep current password">
+        </div>
+
+        <!-- PRIMARY ACTION FIRST -->
+        <div class="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-2.5">
+          <button type="submit" class="btn btn-primary w-full sm:w-auto font-bold px-5 min-h-[40px]">
+            <span>Save Privileges</span>
+          </button>
+          <button type="button" @click="editModal = false" class="btn btn-secondary w-full sm:w-auto min-h-[40px]">
+            <span>Cancel</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
