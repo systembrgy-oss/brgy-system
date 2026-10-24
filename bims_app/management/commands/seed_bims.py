@@ -140,9 +140,15 @@ class Command(BaseCommand):
         ResidentSector.objects.get_or_create(ResidentID=res2, SectorID=sector_objs['4Ps Beneficiary'])
 
         # 7. System Users
+        import os
+        admin_uname = os.environ.get('ADMIN_USERNAME', 'admin').strip()
+        admin_pass = os.environ.get('ADMIN_PASSWORD', 'admin123').strip()
+        staff_uname = os.environ.get('STAFF_USERNAME', 'staff').strip()
+        staff_pass = os.environ.get('STAFF_PASSWORD', 'staff123').strip()
+
         # Admin User
         admin_user, created = User.objects.get_or_create(
-            username='admin',
+            username=admin_uname,
             defaults={
                 'email': 'admin@barangay.gov.ph',
                 'first_name': 'Barangay',
@@ -152,13 +158,15 @@ class Command(BaseCommand):
                 'is_superuser': True
             }
         )
-        if created:
-            admin_user.set_password('admin123')
-            admin_user.save()
+        admin_user.set_password(admin_pass)
+        admin_user.RoleID = role_objs['Admin']
+        admin_user.is_staff = True
+        admin_user.is_superuser = True
+        admin_user.save()
 
         # Staff User
         staff_user, created = User.objects.get_or_create(
-            username='staff',
+            username=staff_uname,
             defaults={
                 'email': 'secretary@barangay.gov.ph',
                 'first_name': 'Barangay',
@@ -167,9 +175,10 @@ class Command(BaseCommand):
                 'is_staff': True
             }
         )
-        if created:
-            staff_user.set_password('staff123')
-            staff_user.save()
+        staff_user.set_password(staff_pass)
+        staff_user.RoleID = role_objs['Staff']
+        staff_user.is_staff = True
+        staff_user.save()
 
         # People User (Resident Juan Dela Cruz)
         resident_user, created = User.objects.get_or_create(
