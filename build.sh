@@ -10,3 +10,6 @@ python manage.py collectstatic --no-input
 
 # Run database migrations
 python manage.py migrate
+
+# Automatically populate default roles, initial data, and demo accounts (admin, staff, resident)
+python manage.py seed_bims
