@@ -1,5 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Count, Q, Sum
@@ -16,7 +16,7 @@ from .models import (
     User, DocumentType, Payment, DocumentRequest,
     Incident, IncidentHearing, AssistanceProgram, AssistanceBeneficiary,
     HealthRecord, Medicine, MedicineDistribution, Announcement, AuditLog,
-    BarangaySetting, CitizenRegistration, Notification
+    BarangaySetting, CitizenRegistration, Notification, UserPermission
 )
 from .utils import log_action, generate_qr_base64, role_required
 
@@ -508,6 +508,7 @@ def document_request_create(request):
             RequestStatus='Pending'
         )
 
+        # Staff notification
         create_notification(
             title=f"New Document Request: {doc_type.DocumentTypeName}",
             message=f"{resident.full_name} submitted a request for {doc_type.DocumentTypeName} (Purpose: {purpose}).",
@@ -515,6 +516,18 @@ def document_request_create(request):
             target_role='Staff',
             link_url=f"/documents/?highlight={doc_req.RequestID}#req-{doc_req.RequestID}"
         )
+
+        # In-app notification to the requesting citizen confirming receipt
+        user_acct = User.objects.filter(ResidentID=resident).first()
+        if user_acct:
+            create_notification(
+                title=f"Document Request Submitted: {doc_type.DocumentTypeName}",
+                message=f"Your request for {doc_type.DocumentTypeName} (Request #{doc_req.RequestID}) has been received and is queued for verification.",
+                notif_type='document',
+                target_role='People',
+                recipient_user=user_acct,
+                link_url=f"/documents/?highlight={doc_req.RequestID}#req-{doc_req.RequestID}"
+            )
 
         log_action(request, f"Submitted document request #{doc_req.RequestID} for {doc_type.DocumentTypeName}", "Document Requests")
         messages.success(request, f"Document request for {doc_type.DocumentTypeName} submitted successfully.")
@@ -527,14 +540,40 @@ def document_request_create(request):
 
 def build_default_letter_paragraphs(doc_req, barangay_name="Barangay Baan"):
     resident = doc_req.ResidentID
-    full_name = resident.full_name.upper()
-    age = resident.age
-    sex = resident.Sex.lower() if resident.Sex else "citizen"
-    civil_status = resident.CivilStatus.lower() if resident.CivilStatus else "single"
-    street = resident.HouseholdID.StreetAddress if resident.HouseholdID else ""
-    purok = resident.HouseholdID.PurokID.PurokName if (resident.HouseholdID and resident.HouseholdID.PurokID) else ""
+    full_name = resident.full_name.upper() if resident else "CITIZEN"
+    age = resident.age if resident else 0
+    sex = resident.Sex.lower() if resident and resident.Sex else "citizen"
+    civil_status = resident.CivilStatus.lower() if resident and resident.CivilStatus else "single"
+    street = resident.HouseholdID.StreetAddress if (resident and resident.HouseholdID) else ""
+    purok = resident.HouseholdID.PurokID.PurokName if (resident and resident.HouseholdID and resident.HouseholdID.PurokID) else ""
     address = f"{street}, {purok}" if street and purok else (street or purok or "Barangay jurisdiction")
-    doc_name = (doc_req.DocumentTypeID.DocumentTypeName or "").lower()
+    doc_name = (doc_req.DocumentTypeID.DocumentTypeName or "").lower() if doc_req.DocumentTypeID else ""
+
+    b_setting = BarangaySetting.objects.first()
+    b_name = b_setting.BarangayName if b_setting else barangay_name
+
+    # Check if this document type has a specific custom template
+    template_text = None
+    if doc_req.DocumentTypeID and doc_req.DocumentTypeID.TemplateBody:
+        template_text = doc_req.DocumentTypeID.TemplateBody
+    elif b_setting and b_setting.LetterBodyTemplate and ("clearance" in doc_name or not any(k in doc_name for k in ["first-time", "residency", "indigency", "good moral"])):
+        template_text = b_setting.LetterBodyTemplate
+
+    if template_text:
+        text = template_text
+        text = text.replace('{RESIDENT_FULL_NAME}', full_name).replace('{RESIDENT_NAME}', full_name)
+        text = text.replace('{AGE}', str(age)).replace('{RESIDENT_AGE}', str(age))
+        text = text.replace('{SEX}', sex)
+        text = text.replace('{CIVIL_STATUS}', civil_status).replace('{RESIDENT_CIVIL_STATUS}', civil_status)
+        text = text.replace('{ADDRESS}', address).replace('{RESIDENT_ADDRESS}', address)
+        text = text.replace('{BARANGAY}', b_name)
+        text = text.replace('{CITY}', b_setting.CityOrMunicipality if b_setting else "")
+        text = text.replace('{PROVINCE}', b_setting.Province if b_setting else "")
+        text = text.replace('{PURPOSE}', doc_req.Purpose or "LEGAL PURPOSES")
+        text = text.replace('{DATE}', timezone.now().strftime("%B %d, %Y"))
+        paras = [p.strip() for p in text.split(chr(10) + chr(10)) if p.strip()]
+        if paras:
+            return paras
 
     if "first-time" in doc_name or "job seeker" in doc_name:
         return [
@@ -647,6 +686,19 @@ def document_process(request, pk):
         elif action == 'release':
             doc_req.RequestStatus = 'Released'
             doc_req.save()
+
+            # In-app notification for the resident on document release
+            user_acct = User.objects.filter(ResidentID=doc_req.ResidentID).first()
+            if user_acct:
+                create_notification(
+                    title=f"Document Released: {doc_req.DocumentTypeID.DocumentTypeName}",
+                    message=f"Your {doc_req.DocumentTypeID.DocumentTypeName} (Control #: {doc_req.QRCodeHash}) has been officially released and handed over.",
+                    notif_type='document',
+                    target_role='People',
+                    recipient_user=user_acct,
+                    link_url=f"/documents/{doc_req.RequestID}/print/"
+                )
+
             log_action(request, f"Released Document Request #{doc_req.RequestID}", "Document Requests")
             messages.success(request, f"Request #{doc_req.RequestID} marked as Released.")
 
@@ -654,6 +706,19 @@ def document_process(request, pk):
             doc_req.RequestStatus = 'Rejected'
             doc_req.ProcessedByUserID = request.user
             doc_req.save()
+
+            # In-app notification for the resident on document rejection
+            user_acct = User.objects.filter(ResidentID=doc_req.ResidentID).first()
+            if user_acct:
+                create_notification(
+                    title=f"Document Request Rejected: {doc_req.DocumentTypeID.DocumentTypeName}",
+                    message=f"Your request for {doc_req.DocumentTypeID.DocumentTypeName} (Request #{doc_req.RequestID}) has been rejected. Please coordinate with the Barangay Hall.",
+                    notif_type='document',
+                    target_role='People',
+                    recipient_user=user_acct,
+                    link_url="/documents/"
+                )
+
             log_action(request, f"Rejected Document Request #{doc_req.RequestID}", "Document Requests")
             messages.warning(request, f"Request #{doc_req.RequestID} rejected.")
 
@@ -678,18 +743,75 @@ def document_view(request, pk):
         pk=pk
     )
 
-    # Allow staff or admin to update the letter body directly from the print preview
+    all_document_types = DocumentType.objects.all().order_by('DocumentTypeID')
+    barangay_setting = BarangaySetting.objects.first() or BarangaySetting.get_settings()
+
+    # Allow staff or admin to update the letter body, citizen name, seals, letterhead, signatories directly from preview
     if request.method == 'POST' and (request.user.RoleID and request.user.RoleID.RoleName in ['Admin', 'Staff'] or request.user.is_superuser):
         action = request.POST.get('action')
-        if action == 'update_letter_body':
-            custom_body = request.POST.get('CustomLetterBody', '').strip()
+        if action in ['update_full_letter', 'update_letter_body']:
+            # 1. Update Document Type
+            doc_type_id = request.POST.get('document_type_id')
+            if doc_type_id:
+                try:
+                    dt = DocumentType.objects.get(pk=doc_type_id)
+                    doc_req.DocumentTypeID = dt
+                except DocumentType.DoesNotExist:
+                    pass
+
+            # 2. Update Citizen Name & Demographics
+            citizen_name = request.POST.get('citizen_name', '').strip()
+            if citizen_name and doc_req.ResidentID:
+                res = doc_req.ResidentID
+                parts = citizen_name.split()
+                if len(parts) == 1:
+                    res.FirstName = parts[0]
+                elif len(parts) >= 2:
+                    res.FirstName = " ".join(parts[:-1])
+                    res.LastName = parts[-1]
+                res.save()
+
+            # 3. Update Stated Purpose
             purpose = request.POST.get('Purpose', '').strip()
             if purpose:
                 doc_req.Purpose = purpose
+
+            # 4. Update Letter Body
+            custom_body = request.POST.get('CustomLetterBody', '').strip()
             doc_req.CustomLetterBody = custom_body if custom_body else None
             doc_req.save()
-            log_action(request, f"Updated Letter Body for Certificate #{doc_req.RequestID}", "Document Requests")
-            messages.success(request, "Certificate letter context updated successfully.")
+
+            # 5. Update Barangay Letterhead, Signatories, & Seals
+            if 'BarangayName' in request.POST:
+                barangay_setting.BarangayName = request.POST.get('BarangayName', barangay_setting.BarangayName).strip()
+            if 'CityOrMunicipality' in request.POST:
+                barangay_setting.CityOrMunicipality = request.POST.get('CityOrMunicipality', barangay_setting.CityOrMunicipality).strip()
+            if 'Province' in request.POST:
+                barangay_setting.Province = request.POST.get('Province', barangay_setting.Province).strip()
+            if 'LetterOfficeHeader' in request.POST:
+                barangay_setting.LetterOfficeHeader = request.POST.get('LetterOfficeHeader', barangay_setting.LetterOfficeHeader).strip()
+            if 'LetterSalutation' in request.POST:
+                barangay_setting.LetterSalutation = request.POST.get('LetterSalutation', barangay_setting.LetterSalutation).strip()
+            if 'PunongBarangay' in request.POST:
+                barangay_setting.PunongBarangay = request.POST.get('PunongBarangay', barangay_setting.PunongBarangay).strip()
+            if 'BarangaySecretary' in request.POST:
+                barangay_setting.BarangaySecretary = request.POST.get('BarangaySecretary', barangay_setting.BarangaySecretary).strip()
+            if 'LetterSignatoryTitle' in request.POST:
+                barangay_setting.LetterSignatoryTitle = request.POST.get('LetterSignatoryTitle', barangay_setting.LetterSignatoryTitle).strip()
+            if 'BarangayHallAddress' in request.POST:
+                barangay_setting.BarangayHallAddress = request.POST.get('BarangayHallAddress', barangay_setting.BarangayHallAddress).strip()
+            if 'ShowSealWatermark' in request.POST:
+                barangay_setting.ShowSealWatermark = (request.POST.get('ShowSealWatermark') in ['1', 'true', 'on'])
+
+            if 'BarangayLogo' in request.FILES:
+                barangay_setting.BarangayLogo = request.FILES['BarangayLogo']
+            if 'CityLogo' in request.FILES:
+                barangay_setting.CityLogo = request.FILES['CityLogo']
+
+            barangay_setting.save()
+
+            log_action(request, f"Updated Complete Letter for Document #{doc_req.RequestID}", "Document Requests")
+            messages.success(request, "Official Letter, Citizen Details, Seals, and Signatories updated successfully!")
             return redirect('document_view', pk=pk)
 
     # Permission: People can only view their own approved/released documents
@@ -701,15 +823,26 @@ def document_view(request, pk):
             messages.warning(request, "This document has not yet been approved or released.")
             return redirect('documents_list')
 
+    # Allow switching document type via GET query parameter ?switch_type=<id>
+    switch_type = request.GET.get('switch_type')
+    if switch_type and (request.user.RoleID and request.user.RoleID.RoleName in ['Admin', 'Staff'] or request.user.is_superuser):
+        try:
+            target_dt = DocumentType.objects.get(pk=switch_type)
+            doc_req.DocumentTypeID = target_dt
+            doc_req.CustomLetterBody = None  # Reset to standard template of newly selected document type
+            doc_req.save()
+            return redirect('document_view', pk=pk)
+        except DocumentType.DoesNotExist:
+            pass
+
     # Generate QR Code verification url
     verify_url = request.build_absolute_uri(f"/verify/{doc_req.QRCodeHash}/")
     qr_b64 = generate_qr_base64(verify_url)
 
-    barangay_setting = BarangaySetting.objects.first()
     b_name = barangay_setting.BarangayName if barangay_setting else "Barangay Baan"
 
     if doc_req.CustomLetterBody:
-        letter_paragraphs = [p.strip() for p in doc_req.CustomLetterBody.split("\n\n") if p.strip()]
+        letter_paragraphs = [p.strip() for p in doc_req.CustomLetterBody.split(chr(10) + chr(10)) if p.strip()]
         if not letter_paragraphs:
             letter_paragraphs = [doc_req.CustomLetterBody]
     else:
@@ -719,19 +852,45 @@ def document_view(request, pk):
         'doc': doc_req,
         'resident': doc_req.ResidentID,
         'doc_type': doc_req.DocumentTypeID,
+        'all_document_types': all_document_types,
+        'barangay_info': barangay_setting,
         'qr_b64': qr_b64,
         'verify_url': verify_url,
         'issue_date': timezone.now().strftime("%B %d, %Y"),
         'letter_paragraphs': letter_paragraphs,
-        'current_letter_body': doc_req.CustomLetterBody or "\n\n".join(letter_paragraphs),
+        'current_letter_body': doc_req.CustomLetterBody or (chr(10) + chr(10)).join(letter_paragraphs),
     }
     return render(request, 'bims/document_print_template.html', context)
 
 
 # Public verification endpoint (for QR Code scanning on printed certificates)
-def document_verify(request, qr_hash):
-    doc_req = DocumentRequest.objects.filter(QRCodeHash=qr_hash).select_related('ResidentID', 'DocumentTypeID', 'PaymentID').first()
-    return render(request, 'bims/document_verification.html', {'doc': doc_req, 'qr_hash': qr_hash})
+def document_verify(request, qr_hash=None):
+    if not qr_hash:
+        qr_hash = request.GET.get('hash') or request.GET.get('qr_hash') or request.POST.get('hash')
+
+    if qr_hash:
+        qr_hash = qr_hash.strip()
+
+    doc_req = None
+    searched = bool(qr_hash)
+    if qr_hash:
+        doc_req = DocumentRequest.objects.filter(
+            QRCodeHash__iexact=qr_hash
+        ).select_related(
+            'ResidentID',
+            'DocumentTypeID',
+            'PaymentID',
+            'ResidentID__HouseholdID',
+            'ResidentID__HouseholdID__PurokID'
+        ).first()
+
+    barangay_info = BarangaySetting.objects.first()
+    return render(request, 'bims/document_verification.html', {
+        'doc': doc_req,
+        'qr_hash': qr_hash,
+        'searched': searched,
+        'barangay_info': barangay_info,
+    })
 
 
 # --- 3. BLOTTER & INCIDENT MANAGEMENT (KATARUNGANG PAMBARANGAY) ---
@@ -779,6 +938,7 @@ def incident_create(request):
             IsConfidential=is_confidential
         )
 
+        # Staff notification
         create_notification(
             title=f"New Blotter Incident Filed: Case #{incident.IncidentID}",
             message=f"New incident filed vs {incident.RespondentName} (Complainant: {complainant.full_name if complainant else 'Resident'}).",
@@ -786,6 +946,18 @@ def incident_create(request):
             target_role='Staff',
             link_url=f"/incidents/{incident.IncidentID}/"
         )
+
+        # Notify the complainant citizen on their unique personal account
+        complainant_user = User.objects.filter(ResidentID=complainant).first()
+        if complainant_user:
+            create_notification(
+                title=f"Complaint Filed: Case #{incident.IncidentID}",
+                message=f"Your complaint vs {incident.RespondentName} has been officially recorded with Katarungang Pambarangay (Case #{incident.IncidentID}). Staff will review and schedule conciliation.",
+                notif_type='incident',
+                target_role='People',
+                recipient_user=complainant_user,
+                link_url=f"/incidents/{incident.IncidentID}/"
+            )
 
         log_action(request, f"Filed Blotter Case #{incident.IncidentID}: vs {incident.RespondentName}", "Blotter Management")
         messages.success(request, f"Blotter Case #{incident.IncidentID} recorded successfully.")
@@ -811,6 +983,19 @@ def incident_detail(request, pk):
         if new_status in dict(Incident.CASE_STATUS_CHOICES):
             incident.CaseStatus = new_status
             incident.save()
+
+            # Notify the complainant citizen of case status changes
+            complainant_user = User.objects.filter(ResidentID=incident.ComplainantResidentID).first()
+            if complainant_user:
+                create_notification(
+                    title=f"Complaint Status Update: Case #{incident.IncidentID}",
+                    message=f"Case #{incident.IncidentID} vs {incident.RespondentName} status has been updated to '{new_status}'.",
+                    notif_type='incident',
+                    target_role='People',
+                    recipient_user=complainant_user,
+                    link_url=f"/incidents/{incident.IncidentID}/"
+                )
+
             log_action(request, f"Updated Case #{incident.IncidentID} status to {new_status}", "Blotter Management")
             messages.success(request, f"Case status updated to {new_status}.")
             return redirect('incident_detail', pk=incident.IncidentID)
@@ -839,6 +1024,18 @@ def hearing_create(request, incident_id):
         if incident.CaseStatus == 'Filed':
             incident.CaseStatus = 'Under Mediation'
             incident.save()
+
+        # Notify the complainant citizen of the scheduled conciliation hearing
+        complainant_user = User.objects.filter(ResidentID=incident.ComplainantResidentID).first()
+        if complainant_user:
+            create_notification(
+                title=f"Hearing Scheduled: Case #{incident.IncidentID}",
+                message=f"A conciliation hearing for Case #{incident.IncidentID} vs {incident.RespondentName} is scheduled on {hearing_date}.",
+                notif_type='incident',
+                target_role='People',
+                recipient_user=complainant_user,
+                link_url=f"/incidents/{incident.IncidentID}/"
+            )
 
         log_action(request, f"Scheduled Hearing for Case #{incident.IncidentID} on {hearing_date}", "Blotter Management")
         messages.success(request, "Conciliation hearing scheduled.")
@@ -923,9 +1120,9 @@ def health_records_list(request):
             record_id = request.POST.get('RecordID')
             rec = get_object_or_404(HealthRecord, pk=record_id)
             patient_name = rec.ResidentID.full_name
-            rec.delete()
-            log_action(request, f"Deleted Health Record #{record_id} of {patient_name}", "Health Center")
-            messages.success(request, f"Health consultation record deleted.")
+            rec.soft_delete()
+            log_action(request, f"Soft-deleted Health Record #{record_id} of {patient_name} (Archived in DB)", "Health Center")
+            messages.success(request, f"Health consultation record archived / soft-deleted. Data remains safely preserved in database.")
             return redirect('health_records_list')
 
         # Create Record
@@ -1031,9 +1228,9 @@ def announcements_list(request):
             ann_id = request.POST.get('AnnouncementID')
             ann = get_object_or_404(Announcement, pk=ann_id)
             title = ann.Title
-            ann.delete()
-            log_action(request, f"Deleted Announcement: {title}", "Announcements")
-            messages.success(request, f"Announcement '{title}' deleted.")
+            ann.soft_delete()
+            log_action(request, f"Soft-deleted Announcement: {title} (Archived in DB)", "Announcements")
+            messages.success(request, f"Announcement '{title}' archived. Record remains safely preserved in database.")
             return redirect('announcements_list')
 
         # create
@@ -1096,7 +1293,65 @@ def barangay_settings_view(request):
     if request.method == 'POST':
         action = request.POST.get('action', 'update_settings')
 
-        if action == 'toggle_status':
+        if action == 'update_profile':
+            new_username = request.POST.get('username', '').strip()
+            first_name = request.POST.get('first_name', '').strip()
+            last_name = request.POST.get('last_name', '').strip()
+            email = request.POST.get('email', '').strip()
+
+            if not new_username:
+                messages.error(request, "Username cannot be empty.")
+                return redirect('/settings/?tab=my_profile')
+
+            if User.objects.filter(username__iexact=new_username).exclude(pk=request.user.pk).exists():
+                messages.error(request, f"The username '{new_username}' is already in use by another account.")
+                return redirect('/settings/?tab=my_profile')
+
+            old_username = request.user.username
+            request.user.username = new_username
+            request.user.first_name = first_name
+            request.user.last_name = last_name
+            request.user.email = email
+            request.user.save()
+
+            if request.user.ResidentID:
+                res = request.user.ResidentID
+                if first_name:
+                    res.FirstName = first_name
+                if last_name:
+                    res.LastName = last_name
+                res.save()
+
+            log_action(request, f"Updated profile details for {request.user.username} (was: {old_username})", "User Profile")
+            messages.success(request, "Profile details (username and name) updated successfully!")
+            return redirect('/settings/?tab=my_profile')
+
+        elif action == 'change_profile_password':
+            current_password = request.POST.get('current_password', '')
+            new_password = request.POST.get('new_password', '')
+            confirm_password = request.POST.get('confirm_password', '')
+
+            if not request.user.check_password(current_password):
+                messages.error(request, "Current password is incorrect. Please try again.")
+                return redirect('/settings/?tab=my_profile')
+
+            if not new_password or len(new_password) < 6:
+                messages.error(request, "New password must be at least 6 characters in length.")
+                return redirect('/settings/?tab=my_profile')
+
+            if new_password != confirm_password:
+                messages.error(request, "New password and confirmation do not match.")
+                return redirect('/settings/?tab=my_profile')
+
+            request.user.set_password(new_password)
+            request.user.save()
+            update_session_auth_hash(request, request.user)
+
+            log_action(request, f"User {request.user.username} successfully updated their password", "Security")
+            messages.success(request, "Password changed successfully! Your session remains active.")
+            return redirect('/settings/?tab=my_profile')
+
+        elif action == 'toggle_status':
             user_id = request.POST.get('user_id')
             target_user = get_object_or_404(User, pk=user_id)
             if target_user.id == request.user.id:
@@ -1136,9 +1391,9 @@ def barangay_settings_view(request):
                 messages.error(request, "You cannot delete your own administrative account.")
                 return redirect('/settings/?tab=users')
             u_name = target_user.username
-            target_user.delete()
-            log_action(request, f"Deleted User account: {u_name}", "User Management")
-            messages.success(request, f"User account '{u_name}' deleted permanently.")
+            target_user.soft_delete()
+            log_action(request, f"Soft-deleted User account: {u_name} (Archived in DB)", "User Management")
+            messages.success(request, f"User account '{u_name}' archived. Historical logs and records remain safely preserved.")
             return redirect('/settings/?tab=users')
 
         elif action == 'create_user':
@@ -1157,9 +1412,57 @@ def barangay_settings_view(request):
                 ResidentID=resident,
                 is_staff=(role.RoleName in ['Admin', 'Staff'])
             )
+            UserPermission.get_for_user(new_user)
             log_action(request, f"Created User account: {new_user.username} (Role: {role.RoleName})", "User Management")
             messages.success(request, f"User {new_user.username} created.")
             return redirect('/settings/?tab=users')
+
+        elif action == 'update_document_letter':
+            doc_type_id = request.POST.get('document_type_id')
+            body_template = request.POST.get('LetterBodyTemplate', '').strip()
+
+            if doc_type_id:
+                dt = DocumentType.objects.filter(pk=doc_type_id).first()
+                if dt:
+                    dt.TemplateBody = body_template
+                    dt.save()
+
+            settings.LetterOfficeHeader = request.POST.get('LetterOfficeHeader', settings.LetterOfficeHeader).strip()
+            settings.LetterSalutation = request.POST.get('LetterSalutation', settings.LetterSalutation).strip()
+            settings.LetterBodyTemplate = body_template
+            settings.LetterClosing = request.POST.get('LetterClosing', settings.LetterClosing).strip()
+            settings.LetterSignatoryTitle = request.POST.get('LetterSignatoryTitle', settings.LetterSignatoryTitle).strip()
+            settings.ShowSealWatermark = ('ShowSealWatermark' in request.POST)
+
+            if 'BarangayLogo' in request.FILES:
+                settings.BarangayLogo = request.FILES['BarangayLogo']
+            if 'CityLogo' in request.FILES:
+                settings.CityLogo = request.FILES['CityLogo']
+
+            settings.save()
+            log_action(request, f"Updated Document Letter Template ({doc_type_id or 'General'}) and Seals", "Document Management")
+            messages.success(request, "Official Document Letter templates and seals updated successfully!")
+            redirect_url = f'/settings/?tab=letter&doc_type={doc_type_id}' if doc_type_id else '/settings/?tab=letter'
+            return redirect(redirect_url)
+
+        elif action == 'update_user_permissions':
+            user_id = request.POST.get('user_id')
+            target_user = get_object_or_404(User, pk=user_id)
+            perm = UserPermission.get_for_user(target_user)
+
+            perm.can_approve = ('can_approve' in request.POST)
+            perm.can_reject = ('can_reject' in request.POST)
+            perm.can_add = ('can_add' in request.POST)
+            perm.can_edit = ('can_edit' in request.POST)
+            perm.can_delete = ('can_delete' in request.POST)
+            perm.can_distribute_medicine = ('can_distribute_medicine' in request.POST)
+            perm.can_give_document = ('can_give_document' in request.POST)
+            perm.can_view_records = True
+            perm.save()
+
+            log_action(request, f"Updated Granular Permissions for User: {target_user.username}", "User Management")
+            messages.success(request, f"Action privileges and permissions for user '{target_user.username}' updated successfully.")
+            return redirect('/settings/?tab=users&sub=permissions')
 
         else:
             # Update Settings
@@ -1179,10 +1482,17 @@ def barangay_settings_view(request):
             messages.success(request, "Barangay Profile and Signatories updated successfully! All certificates and layouts now reflect these changes.")
             return redirect('/settings/?tab=profile')
 
-    users = User.objects.select_related('RoleID', 'ResidentID').all().order_by('username')
+    users = User.objects.filter(is_deleted=False).select_related('RoleID', 'ResidentID').order_by('username')
     roles = Role.objects.all()
     residents = Resident.objects.filter(user_account__isnull=True).order_by('LastName')
     logs = AuditLog.objects.select_related('UserID').order_by('-Timestamp')[:100]
+
+    active_subtab = request.GET.get('sub', 'list')
+    for u in users:
+        u.perm_obj = UserPermission.get_for_user(u)
+
+    document_types = DocumentType.objects.all().order_by('DocumentTypeID')
+    selected_doc_type_id = request.GET.get('doc_type', '')
 
     return render(request, 'bims/barangay_settings.html', {
         'settings': settings,
@@ -1190,7 +1500,10 @@ def barangay_settings_view(request):
         'roles': roles,
         'residents': residents,
         'logs': logs,
-        'active_tab': active_tab
+        'document_types': document_types,
+        'selected_doc_type_id': selected_doc_type_id,
+        'active_tab': active_tab,
+        'active_subtab': active_subtab,
     })
 
 
@@ -1701,3 +2014,8 @@ def notification_mark_all_read(request):
 
 
 
+
+@login_required
+def profile_redirect_view(request):
+    """Redirects user to the system administration profile tab."""
+    return redirect('/settings/?tab=my_profile')

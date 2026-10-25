@@ -6,19 +6,23 @@
 {% block content %}
 <!-- Status Filter Tabs (44px min touch target) -->
 <div class="flex flex-wrap gap-2 mb-5">
-  <a href="{% url 'admin_registrations' %}?status=Pending" class="btn {% if status_filter == 'Pending' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">
+  <a href="{% url 'admin_registrations' %}?status=Pending"
+     class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border min-h-[36px] transition-colors {% if status_filter == 'Pending' %}bg-amber-600 text-white border-amber-600 font-bold shadow-xs{% else %}bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100 font-semibold{% endif %}">
     <i data-lucide="clock" style="width: 14px; height: 14px;"></i>
     <span>Pending Review ({{ pending_count }})</span>
   </a>
-  <a href="{% url 'admin_registrations' %}?status=Approved" class="btn {% if status_filter == 'Approved' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">
+  <a href="{% url 'admin_registrations' %}?status=Approved"
+     class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border min-h-[36px] transition-colors {% if status_filter == 'Approved' %}bg-emerald-600 text-white border-emerald-600 font-bold shadow-xs{% else %}bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 font-semibold{% endif %}">
     <i data-lucide="check-circle" style="width: 14px; height: 14px;"></i>
     <span>Approved Accounts</span>
   </a>
-  <a href="{% url 'admin_registrations' %}?status=Rejected" class="btn {% if status_filter == 'Rejected' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">
+  <a href="{% url 'admin_registrations' %}?status=Rejected"
+     class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border min-h-[36px] transition-colors {% if status_filter == 'Rejected' %}bg-rose-600 text-white border-rose-600 font-bold shadow-xs{% else %}bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100 font-semibold{% endif %}">
     <i data-lucide="x-circle" style="width: 14px; height: 14px;"></i>
     <span>Rejected</span>
   </a>
-  <a href="{% url 'admin_registrations' %}?status=" class="btn {% if not status_filter %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">
+  <a href="{% url 'admin_registrations' %}?status="
+     class="btn {% if not status_filter %}btn-primary font-bold{% else %}btn-secondary font-semibold{% endif %} btn-sm">
     <span>All Applications</span>
   </a>
 </div>
@@ -40,6 +44,7 @@
           <th>Email / Contact</th>
           <th>Purok & Address</th>
           <th>Census Status</th>
+          <th>Application Status</th>
           <th>Proof of Residency</th>
           <th>Action</th>
         </tr>
@@ -68,12 +73,31 @@
             </td>
             <td>
               {% if app.ExistingResidentMatch %}
-                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-green-100 text-green-800 border border-green-200" title="Matched existing resident from census">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200" title="Matched existing resident from census">
                   <i data-lucide="check" style="width: 11px; height: 11px;"></i> Census Matched
                 </span>
               {% else %}
-                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200" title="Not yet in existing census list">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200" title="Not yet in existing census list">
                   <i data-lucide="help-circle" style="width: 11px; height: 11px;"></i> New Resident
+                </span>
+              {% endif %}
+            </td>
+            <td>
+              {% if app.Status == 'Approved' %}
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-2xs">
+                  <i data-lucide="check-circle" style="width: 12px; height: 12px;" class="text-emerald-700"></i> Approved
+                </span>
+              {% elif app.Status == 'Pending' %}
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs">
+                  <i data-lucide="clock" style="width: 12px; height: 12px;" class="text-amber-700"></i> Pending Review
+                </span>
+              {% elif app.Status == 'Rejected' %}
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-900 border border-rose-300 shadow-2xs">
+                  <i data-lucide="x-circle" style="width: 12px; height: 12px;" class="text-rose-700"></i> Rejected
+                </span>
+              {% else %}
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-300">
+                  {{ app.Status }}
                 </span>
               {% endif %}
             </td>
@@ -127,7 +151,7 @@
           </tr>
         {% empty %}
           <tr>
-            <td colspan="7" class="text-center text-slate-400 py-10 text-xs">
+            <td colspan="8" class="text-center text-slate-400 py-10 text-xs">
               <i data-lucide="check-circle" class="mx-auto mb-1 text-slate-300" style="width: 24px; height: 24px;"></i>
               No applications found in this queue.
             </td>

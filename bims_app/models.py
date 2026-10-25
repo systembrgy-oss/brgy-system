@@ -3,6 +3,37 @@ from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 import uuid
 
+# ==============================================================================
+# AUDIT & SOFT DELETE ARCHITECTURE
+# Prevents physical deletion of records from the database. Deleted records
+# remain permanently archived for legal registry, compliance, and auditing.
+# ==============================================================================
+class SoftDeleteManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(is_deleted=False)
+
+
+class SoftDeleteModel(models.Model):
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    objects = SoftDeleteManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        abstract = True
+
+    def soft_delete(self):
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.save()
+
+    def restore(self):
+        self.is_deleted = False
+        self.deleted_at = None
+        self.save()
+
+
 # 1. ROLES (RBAC)
 class Role(models.Model):
     RoleID = models.AutoField(primary_key=True)
@@ -33,7 +64,7 @@ class Purok(models.Model):
 
 
 # 3. HOUSEHOLDS
-class Household(models.Model):
+class Household(SoftDeleteModel):
     HouseholdID = models.AutoField(primary_key=True)
     HouseholdNumber = models.CharField(max_length=50, unique=True)
     PurokID = models.ForeignKey(Purok, on_delete=models.CASCADE, db_column='PurokID', related_name='households')
@@ -49,7 +80,7 @@ class Household(models.Model):
 
 
 # 4. RESIDENTS
-class Resident(models.Model):
+class Resident(SoftDeleteModel):
     SEX_CHOICES = [
         ('Male', 'Male'),
         ('Female', 'Female'),
@@ -135,6 +166,24 @@ class ResidentSector(models.Model):
 class User(AbstractUser):
     RoleID = models.ForeignKey(Role, on_delete=models.PROTECT, null=True, blank=True, db_column='RoleID', related_name='users')
     ResidentID = models.OneToOneField(Resident, on_delete=models.SET_NULL, null=True, blank=True, db_column='ResidentID', related_name='user_account')
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    def soft_delete(self):
+        self.is_active = False
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.save()
+
+    def restore(self):
+        self.is_active = True
+        self.is_deleted = False
+        self.deleted_at = None
+        self.save()
+
+    @property
+    def perm(self):
+        return UserPermission.get_for_user(self)
 
     class Meta:
         db_table = 'Users'
@@ -159,6 +208,7 @@ class DocumentType(models.Model):
     DocumentTypeID = models.AutoField(primary_key=True)
     DocumentTypeName = models.CharField(max_length=100)
     StandardFee = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    TemplateBody = models.TextField(null=True, blank=True)
 
     class Meta:
         db_table = 'DocumentTypes'
@@ -186,7 +236,7 @@ class Payment(models.Model):
 
 
 # 10. DOCUMENT REQUESTS
-class DocumentRequest(models.Model):
+class DocumentRequest(SoftDeleteModel):
     STATUS_CHOICES = [
         ('Pending', 'Pending'),
         ('Approved', 'Approved'),
@@ -223,7 +273,7 @@ class DocumentRequest(models.Model):
 
 
 # 11. BLOTTER / INCIDENTS
-class Incident(models.Model):
+class Incident(SoftDeleteModel):
     CASE_STATUS_CHOICES = [
         ('Filed', 'Filed'),
         ('Under Mediation', 'Under Mediation'),
@@ -300,7 +350,7 @@ class AssistanceBeneficiary(models.Model):
 
 
 # 15. HEALTH RECORDS
-class HealthRecord(models.Model):
+class HealthRecord(SoftDeleteModel):
     RECORD_TYPE_CHOICES = [
         ('Vaccination', 'Vaccination'),
         ('Maternal Care', 'Maternal Care'),
@@ -323,7 +373,7 @@ class HealthRecord(models.Model):
 
 
 # 16. MEDICINE INVENTORY
-class Medicine(models.Model):
+class Medicine(SoftDeleteModel):
     MedicineID = models.AutoField(primary_key=True)
     MedicineName = models.CharField(max_length=100)
     Unit = models.CharField(max_length=50)
@@ -356,7 +406,7 @@ class MedicineDistribution(models.Model):
 
 
 # 18. ANNOUNCEMENTS
-class Announcement(models.Model):
+class Announcement(SoftDeleteModel):
     AnnouncementID = models.AutoField(primary_key=True)
     Title = models.CharField(max_length=200)
     Content = models.TextField()
@@ -410,6 +460,15 @@ class BarangaySetting(models.Model):
     ContactNumber = models.CharField(max_length=50, default="0917-888-BIMS")
     EmailAddress = models.EmailField(default="contact@barangaysanroque.gov.ph")
     BarangayHallAddress = models.CharField(max_length=255, default="Barangay Hall Complex, Mabini St.")
+    # Official Seals and Letter Template Fields
+    BarangayLogo = models.FileField(upload_to='seals/', null=True, blank=True)
+    CityLogo = models.FileField(upload_to='seals/', null=True, blank=True)
+    LetterOfficeHeader = models.CharField(max_length=200, default="OFFICE OF THE PUNONG BARANGAY")
+    LetterSalutation = models.CharField(max_length=200, default="TO WHOM IT MAY CONCERN:")
+    LetterBodyTemplate = models.TextField(blank=True, null=True)
+    LetterClosing = models.CharField(max_length=255, default="Issued upon request of the above-named person for whatever legal intents and purposes it may serve.")
+    LetterSignatoryTitle = models.CharField(max_length=150, default="Punong Barangay")
+    ShowSealWatermark = models.BooleanField(default=True)
 
     class Meta:
         db_table = 'BarangaySettings'
@@ -426,7 +485,7 @@ class BarangaySetting(models.Model):
 
 
 # 21. CITIZEN REGISTRATIONS (Public Online Intake & Admin Review Gate)
-class CitizenRegistration(models.Model):
+class CitizenRegistration(SoftDeleteModel):
     STATUS_CHOICES = [
         ('Pending', 'Pending Review'),
         ('Approved', 'Approved & Activated'),
@@ -517,3 +576,48 @@ class Notification(models.Model):
 
 
 
+
+
+# 23. USER PERMISSIONS (Granular Role-Based Action Privileges)
+class UserPermission(models.Model):
+    PermissionID = models.AutoField(primary_key=True)
+    UserID = models.OneToOneField(User, on_delete=models.CASCADE, db_column='UserID', related_name='permissions')
+    can_approve = models.BooleanField(default=False, help_text="Can approve citizen registrations and document requests")
+    can_reject = models.BooleanField(default=False, help_text="Can reject citizen applications and clearance requests")
+    can_add = models.BooleanField(default=False, help_text="Can add residents, households, blotter incidents, or inventory items")
+    can_edit = models.BooleanField(default=False, help_text="Can edit records, citizen details, inventory, and blotter hearings")
+    can_delete = models.BooleanField(default=False, help_text="Can delete records from system modules")
+    can_distribute_medicine = models.BooleanField(default=False, help_text="Can dispense medicines and log health center pharmacy distributions")
+    can_give_document = models.BooleanField(default=False, help_text="Can process, sign, and release official clearance documents")
+    can_view_records = models.BooleanField(default=True, help_text="Can view system records and information")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'UserPermissions'
+        verbose_name = 'User Permission'
+        verbose_name_plural = 'User Permissions'
+
+    def __str__(self):
+        return f"Permissions for {self.UserID.username}"
+
+    @classmethod
+    def get_for_user(cls, user):
+        if not user or not user.is_authenticated:
+            return None
+        role_name = user.RoleID.RoleName if user.RoleID else ''
+        is_admin = user.is_superuser or role_name == 'Admin'
+        is_staff = is_admin or role_name == 'Staff'
+        perm, created = cls.objects.get_or_create(
+            UserID=user,
+            defaults={
+                'can_approve': is_admin,
+                'can_reject': is_admin,
+                'can_add': is_staff,
+                'can_edit': is_staff,
+                'can_delete': is_admin,
+                'can_distribute_medicine': is_staff,
+                'can_give_document': is_staff,
+                'can_view_records': True,
+            }
+        )
+        return perm

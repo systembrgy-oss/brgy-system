@@ -21,15 +21,21 @@ def barangay_context(request):
 
         if role_name == 'Admin' or user.is_superuser:
             qs = Notification.objects.filter(
-                Q(RecipientUser=user) | Q(TargetRole__in=['Admin', 'Staff', 'All'])
+                Q(RecipientUser=user) | 
+                Q(RecipientUser__isnull=True, TargetRole__in=['Admin', 'Staff', 'All'])
             )
         elif role_name == 'Staff':
             qs = Notification.objects.filter(
-                Q(RecipientUser=user) | Q(TargetRole__in=['Staff', 'All'])
+                Q(RecipientUser=user) | 
+                Q(RecipientUser__isnull=True, TargetRole__in=['Staff', 'All'])
             )
-        else: # People / Resident
+        else: # People / Citizen
+            # Each unique citizen account has their OWN private notifications:
+            # 1. Direct notifications addressed specifically to this citizen (their own document requests, complaints, account approvals)
+            # 2. General announcements & emergency alerts broadcast to the community (RecipientUser is None, TargetRole in ['People', 'All'])
             qs = Notification.objects.filter(
-                Q(RecipientUser=user) | Q(TargetRole__in=['People', 'All'])
+                Q(RecipientUser=user) | 
+                Q(RecipientUser__isnull=True, TargetRole__in=['People', 'All'], NotificationType__in=['announcement', 'system'])
             )
 
         unread_notif_count = qs.filter(IsRead=False).count()

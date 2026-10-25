@@ -40,8 +40,8 @@ def api_document_verify(request, qr_hash):
     Public REST endpoint for verifying physical/digital document authenticity.
     Used by employers, banks, and external agencies scanning the document's QR code.
     """
-    doc_req = DocumentRequest.objects.filter(QRCodeHash=qr_hash).select_related(
-        'ResidentID', 'DocumentTypeID', 'PaymentID'
+    doc_req = DocumentRequest.objects.filter(QRCodeHash__iexact=qr_hash.strip()).select_related(
+        'ResidentID', 'DocumentTypeID', 'PaymentID', 'ResidentID__HouseholdID', 'ResidentID__HouseholdID__PurokID'
     ).first()
 
     if not doc_req:
@@ -70,7 +70,8 @@ def api_document_verify(request, qr_hash):
                 "resident_id": res.ResidentID,
                 "full_name": res.full_name,
                 "civil_status": res.CivilStatus,
-                "voter": res.IsVoter
+                "voter": res.IsVoter,
+                "address": f"{res.HouseholdID.StreetAddress}, {res.HouseholdID.PurokID.PurokName}" if res.HouseholdID and res.HouseholdID.PurokID else (res.HouseholdID.StreetAddress if res.HouseholdID else "N/A")
             },
             "payment": {
                 "official_receipt_no": payment.OfficialReceiptNo if payment else None,

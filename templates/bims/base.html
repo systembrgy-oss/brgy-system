@@ -53,6 +53,10 @@
   
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Alpine.js Cloak Style to eliminate modal flash on page load -->
+  <style>
+    [x-cloak] { display: none !important; }
+  </style>
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans antialiased min-h-screen">
   <div class="app-layout">
@@ -134,14 +138,16 @@
 
       <div class="sidebar-footer">
         <div class="user-badge">
-          <div class="user-avatar">
-            {{ request.user.first_name|default:request.user.username|make_list|first|upper }}
-          </div>
-          <div class="user-info">
-            <div class="user-name">{{ request.user.first_name }} {{ request.user.last_name|default:request.user.username }}</div>
-            <div class="user-role-tag">{{ request.user.RoleID.RoleName|default:"SuperAdmin" }}</div>
-          </div>
-          <a href="{% url 'logout' %}" class="text-slate-400 hover:text-red-400 ml-auto p-1 transition" title="Logout">
+          <a href="{% url 'barangay_settings' %}?tab=my_profile" class="flex items-center gap-2.5 min-w-0 flex-1 hover:opacity-90 transition" title="Manage Profile & Password">
+            <div class="user-avatar">
+              {{ request.user.first_name|default:request.user.username|make_list|first|upper }}
+            </div>
+            <div class="user-info">
+              <div class="user-name">{{ request.user.first_name }} {{ request.user.last_name|default:request.user.username }}</div>
+              <div class="user-role-tag">{{ request.user.RoleID.RoleName|default:"SuperAdmin" }}</div>
+            </div>
+          </a>
+          <a href="{% url 'logout' %}" class="text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-md ml-auto p-1.5 transition flex items-center justify-center" title="Logout of Session">
             <i data-lucide="log-out" style="width: 18px; height: 18px;"></i>
           </a>
         </div>
@@ -238,30 +244,14 @@
           </div>
 
           <!-- Mobile Logout Quick Action -->
-          <a href="{% url 'logout' %}" class="sm:hidden text-slate-500 hover:text-red-600 p-1" title="Logout">
+          <a href="{% url 'logout' %}" class="sm:hidden text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-md p-1.5 transition flex items-center justify-center" title="Logout of Session">
             <i data-lucide="log-out" style="width: 18px; height: 18px;"></i>
           </a>
         </div>
       </header>
 
       <main class="content-container">
-        <!-- Message Alerts -->
-        {% if messages %}
-          {% for message in messages %}
-            <div class="alert-box alert-{{ message.tags }}">
-              {% if message.tags == 'success' %}
-                <i data-lucide="check-circle-2"></i>
-              {% elif message.tags == 'error' %}
-                <i data-lucide="alert-octagon"></i>
-              {% elif message.tags == 'warning' %}
-                <i data-lucide="alert-triangle"></i>
-              {% else %}
-                <i data-lucide="info"></i>
-              {% endif %}
-              <span>{{ message }}</span>
-            </div>
-          {% endfor %}
-        {% endif %}
+
 
         {% block content %}{% endblock %}
       </main>
@@ -413,6 +403,7 @@
         if (type === 'search' || target.name === 'q' || target.name === 'search' || target.hasAttribute('data-filter') || target.hasAttribute('data-no-dirty')) return false;
         const form = target.closest('form');
         if (!form || form.hasAttribute('data-no-dirty')) return false;
+        if (form.method && form.method.toUpperCase() === 'GET') return false;
         return true;
       }
 
@@ -428,18 +419,150 @@
         }
       });
 
-      // Saving changes: clear dirty state immediately on submit
-      document.addEventListener('submit', function(e) {
-        window.markClean();
-      });
+      // --- Universal Anti-Spam & Button Disabling System ---
+      let activeSubmitBtn = null;
+      let lastSubmitClickTime = 0;
 
-      // Clear dirty state if a submit button is clicked
+      // Capture submit button clicks to identify active button and reject rapid spam clicks
       document.addEventListener('click', function(e) {
-        const submitBtn = e.target.closest('button[type="submit"], input[type="submit"]');
-        if (submitBtn) {
+        const btn = e.target.closest('button[type="submit"], input[type="submit"]');
+        if (!btn) return;
+
+        const now = Date.now();
+        // If button or its parent form is already marked submitting, or clicked rapidly (< 600ms), prevent spam
+        if (btn.disabled || btn.dataset.submitting === 'true' || (btn === activeSubmitBtn && now - lastSubmitClickTime < 600)) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          return false;
+        }
+
+        const form = btn.closest('form');
+        if (form && form.dataset.submitting === 'true') {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          return false;
+        }
+
+        activeSubmitBtn = btn;
+        lastSubmitClickTime = now;
+
+        if (typeof window.markClean === 'function') {
           window.markClean();
         }
       }, true);
+
+      // Universal Form Submit Protection: Prevents duplicate submits & disables button with visual loading state
+      document.addEventListener('submit', function(e) {
+        const form = e.target;
+        if (!form || form.tagName !== 'FORM') return;
+
+        // 1. If form is already submitting, cancel duplicate submit
+        if (form.dataset.submitting === 'true') {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          return false;
+        }
+
+        // 2. If form has HTML5 validation and is invalid, let browser show tooltip and do not disable yet
+        if (typeof form.checkValidity === 'function' && !form.checkValidity()) {
+          return;
+        }
+
+        // 3. Mark form as submitting
+        form.dataset.submitting = 'true';
+        if (typeof window.markClean === 'function') {
+          window.markClean();
+        }
+
+        // 4. Find all submit buttons in this form
+        const submitBtns = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+        submitBtns.forEach(btn => {
+          btn.style.pointerEvents = 'none';
+          btn.style.cursor = 'wait';
+          btn.classList.add('opacity-75');
+          btn.dataset.submitting = 'true';
+
+          // Preserve button name & value into a hidden input before disabling (essential for Django action buttons)
+          if (btn.name && btn.value && (btn === activeSubmitBtn || submitBtns.length === 1)) {
+            let hiddenInput = form.querySelector(`input[type="hidden"][name="${btn.name}"]`);
+            if (!hiddenInput) {
+              hiddenInput = document.createElement('input');
+              hiddenInput.type = 'hidden';
+              hiddenInput.name = btn.name;
+              form.appendChild(hiddenInput);
+            }
+            hiddenInput.value = btn.value;
+          }
+
+          // If this was the active clicked button, add loading state with spinner
+          if (btn === activeSubmitBtn || submitBtns.length === 1) {
+            btn.dataset.originalHtml = btn.innerHTML;
+            if (!btn.querySelector('.submit-spinner')) {
+              const spinnerSvg = '<svg class="submit-spinner animate-spin -ml-0.5 mr-2 h-4 w-4 inline-block text-current shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>';
+              btn.insertAdjacentHTML('afterbegin', spinnerSvg);
+            }
+            // Update button label text if a span exists
+            const textSpan = btn.querySelector('span:not(.badge)');
+            if (textSpan) {
+              const currentText = (textSpan.textContent || '').trim().toLowerCase();
+              if (currentText.includes('sign in') || currentText.includes('mag-sign')) {
+                textSpan.textContent = 'Signing in...';
+              } else if (currentText.includes('save') || currentText.includes('i-save')) {
+                textSpan.textContent = 'Saving...';
+              } else if (currentText.includes('submit') || currentText.includes('isumite')) {
+                textSpan.textContent = 'Submitting...';
+              } else if (currentText.includes('approve')) {
+                textSpan.textContent = 'Approving...';
+              } else if (currentText.includes('delete') || currentText.includes('burahin')) {
+                textSpan.textContent = 'Deleting...';
+              } else {
+                textSpan.textContent = 'Processing...';
+              }
+            }
+          }
+
+          // Set disabled on the next tick so the browser's form submission pipeline isn't disrupted
+          setTimeout(() => {
+            btn.disabled = true;
+          }, 10);
+        });
+
+        // Safety recovery timer: If page doesn't unload within 12 seconds, re-enable
+        setTimeout(() => {
+          if (form.dataset.submitting === 'true') {
+            delete form.dataset.submitting;
+            submitBtns.forEach(btn => {
+              btn.disabled = false;
+              btn.style.pointerEvents = '';
+              btn.style.cursor = '';
+              btn.classList.remove('opacity-75');
+              delete btn.dataset.submitting;
+              if (btn.dataset.originalHtml) {
+                btn.innerHTML = btn.dataset.originalHtml;
+                delete btn.dataset.originalHtml;
+              }
+            });
+          }
+        }, 12000);
+      }, true);
+
+      // Restore form and buttons if user navigates back using browser history (Back / Forward cache)
+      window.addEventListener('pageshow', function() {
+        document.querySelectorAll('form[data-submitting="true"]').forEach(form => {
+          delete form.dataset.submitting;
+          form.querySelectorAll('button[disabled], input[disabled]').forEach(btn => {
+            btn.disabled = false;
+            btn.style.pointerEvents = '';
+            btn.style.cursor = '';
+            btn.classList.remove('opacity-75');
+            delete btn.dataset.submitting;
+            if (btn.dataset.originalHtml) {
+              btn.innerHTML = btn.dataset.originalHtml;
+              delete btn.dataset.originalHtml;
+            }
+          });
+        });
+      });
 
       // Guard browser close / hard reload
       window.addEventListener('beforeunload', function(e) {
@@ -450,20 +573,15 @@
         }
       });
 
-      // Intercept navigation & Logout when unsaved changes exist
+      // Intercept navigation & Logout (with or without unsaved changes)
       document.addEventListener('click', async function(e) {
-        if (!window.isFormDirty) return;
-
         // If the click is a submit button, allow submission
         if (e.target.closest('button[type="submit"], input[type="submit"]')) return;
-
-        // If clicking a [data-confirm] action (like Delete buttons), let data-confirm handler take precedence
-        if (e.target.closest('[data-confirm]')) return;
 
         const link = e.target.closest('a[href]');
         if (!link) return;
 
-        const href = link.getAttribute('href');
+        const href = link.getAttribute('href') || '';
         if (!href || href === '#' || href.startsWith('javascript:') || href.startsWith('#')) return;
         if (link.getAttribute('target') === '_blank') return;
         if (link.hasAttribute('download')) return;
@@ -472,18 +590,44 @@
         // Detect if link is a Logout action
         const isLogout = href.includes('logout') || link.classList.contains('btn-logout') || (link.getAttribute('title') || '').toLowerCase().includes('logout');
 
+        // If not logout and form is not dirty, allow normal navigation
+        if (!isLogout && !window.isFormDirty) return;
+
+        // If clicking a non-logout [data-confirm] action, let data-confirm handler take precedence
+        if (!isLogout && e.target.closest('[data-confirm]')) return;
+
         e.preventDefault();
         e.stopPropagation();
 
         if (typeof window.customConfirm === 'function') {
+          let title, message, confirmText, cancelText, variant;
+          if (isLogout) {
+            if (window.isFormDirty) {
+              title = 'Unsaved Changes on Log Out';
+              message = 'You have unsaved changes that will be permanently lost if you log out now. Are you sure you want to discard your changes and log out?';
+              confirmText = 'Discard & Log Out';
+              cancelText = 'Stay and Save';
+              variant = 'danger';
+            } else {
+              title = 'Confirm Log Out';
+              message = 'Are you sure you want to log out of your Barangay.ph session? You will need to sign in again to access the system.';
+              confirmText = 'Log Out';
+              cancelText = 'Stay Signed In';
+              variant = 'danger';
+            }
+          } else {
+            title = 'Unsaved Changes';
+            message = 'You have unsaved modifications on this page. Leaving will discard all changes that have not been saved. Are you sure you want to leave?';
+            confirmText = 'Leave Without Saving';
+            cancelText = 'Keep Editing';
+            variant = 'warning';
+          }
           const confirmed = await window.customConfirm({
-            title: isLogout ? 'Unsaved Changes on Log Out' : 'Unsaved Changes',
-            message: isLogout
-              ? 'You have unsaved changes that will be permanently lost if you log out now. Are you sure you want to discard your changes and log out?'
-              : 'You have unsaved modifications on this page. Leaving will discard all changes that have not been saved. Are you sure you want to leave?',
-            confirmText: isLogout ? 'Discard & Log Out' : 'Leave Without Saving',
-            cancelText: isLogout ? 'Stay and Save' : 'Keep Editing',
-            variant: isLogout ? 'danger' : 'warning',
+            title: title,
+            message: message,
+            confirmText: confirmText,
+            cancelText: cancelText,
+            variant: variant,
             triggerElement: link
           });
 

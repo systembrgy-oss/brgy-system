@@ -1,4 +1,11 @@
 /* ==========================================================================
+   Alpine.js Cloak - Eliminates modal & dropdown flash/glitch on page loads
+   ========================================================================== */
+[x-cloak] {
+  display: none !important;
+}
+
+/* ==========================================================================
    BARANGAY INFORMATION MANAGEMENT SYSTEM (BIMS) - DESIGN SYSTEM
    Theme: Civic Minimal Flat Card Design
    Primary: #0B5CAD | Semantic: Green #16A34A, Amber #D97706, Red #DC2626

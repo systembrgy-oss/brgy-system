@@ -30,6 +30,54 @@
   </div>
 {% endif %}
 
+<!-- Visual Color-Coding Identifier & Lifecycle Reference Legend -->
+<div class="mb-5 p-3.5 bg-white border border-slate-200/90 rounded-xl shadow-xs space-y-2.5">
+  <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-xs">
+    <!-- Document Types Color Key -->
+    <div class="flex items-center gap-2 flex-wrap">
+      <span class="font-bold text-slate-500 uppercase tracking-wider text-[11px] flex items-center gap-1.5 shrink-0">
+        <i data-lucide="palette" class="w-3.5 h-3.5 text-slate-400"></i>
+        <span>Document Types:</span>
+      </span>
+      <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-sky-50 text-sky-700 border border-sky-200/90 shadow-2xs">
+        <span class="w-2 h-2 rounded-full bg-sky-500"></span> Clearance
+      </span>
+      <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200/90 shadow-2xs">
+        <span class="w-2 h-2 rounded-full bg-amber-500"></span> Indigency
+      </span>
+      <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/90 shadow-2xs">
+        <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Residency
+      </span>
+      <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-purple-50 text-purple-800 border border-purple-200/90 shadow-2xs">
+        <span class="w-2 h-2 rounded-full bg-purple-500"></span> Business Permit
+      </span>
+      <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-200/90 shadow-2xs">
+        <span class="w-2 h-2 rounded-full bg-teal-500"></span> Job Seeker
+      </span>
+    </div>
+
+    <!-- Statuses Color Key -->
+    <div class="flex items-center gap-2 flex-wrap">
+      <span class="font-bold text-slate-500 uppercase tracking-wider text-[11px] flex items-center gap-1.5 shrink-0">
+        <i data-lucide="tag" class="w-3.5 h-3.5 text-slate-400"></i>
+        <span>Status Flow:</span>
+      </span>
+      <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs">
+        <span class="w-2 h-2 rounded-full bg-amber-500"></span> Pending
+      </span>
+      <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-2xs">
+        <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Approved
+      </span>
+      <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-900 border border-indigo-300 shadow-2xs">
+        <span class="w-2 h-2 rounded-full bg-indigo-500"></span> Released
+      </span>
+      <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-900 border border-rose-300 shadow-2xs">
+        <span class="w-2 h-2 rounded-full bg-rose-500"></span> Rejected
+      </span>
+    </div>
+  </div>
+</div>
+
 <!-- Desktop View: Data Table -->
 <div class="card hidden md:block">
   <div class="card-header">
@@ -62,7 +110,39 @@
               <strong class="text-slate-900">{{ req.ResidentID.full_name }}</strong>
               <div class="text-[11px] text-slate-500">{{ req.ResidentID.HouseholdID.PurokID.PurokName }}</div>
             </td>
-            <td><strong class="text-[#0B5CAD]">{{ req.DocumentTypeID.DocumentTypeName }}</strong></td>
+            <td>
+              {% if 'clearance' in req.DocumentTypeID.DocumentTypeName|lower and 'business' not in req.DocumentTypeID.DocumentTypeName|lower %}
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-sky-50 text-sky-700 border border-sky-200/90 shadow-2xs">
+                  <i data-lucide="shield-check" style="width: 13px; height: 13px;" class="text-sky-600 shrink-0"></i>
+                  <span>{{ req.DocumentTypeID.DocumentTypeName }}</span>
+                </span>
+              {% elif 'indigency' in req.DocumentTypeID.DocumentTypeName|lower %}
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200/90 shadow-2xs">
+                  <i data-lucide="heart-handshake" style="width: 13px; height: 13px;" class="text-amber-600 shrink-0"></i>
+                  <span>{{ req.DocumentTypeID.DocumentTypeName }}</span>
+                </span>
+              {% elif 'residency' in req.DocumentTypeID.DocumentTypeName|lower %}
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/90 shadow-2xs">
+                  <i data-lucide="home" style="width: 13px; height: 13px;" class="text-emerald-600 shrink-0"></i>
+                  <span>{{ req.DocumentTypeID.DocumentTypeName }}</span>
+                </span>
+              {% elif 'business' in req.DocumentTypeID.DocumentTypeName|lower %}
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-purple-50 text-purple-800 border border-purple-200/90 shadow-2xs">
+                  <i data-lucide="briefcase" style="width: 13px; height: 13px;" class="text-purple-600 shrink-0"></i>
+                  <span>{{ req.DocumentTypeID.DocumentTypeName }}</span>
+                </span>
+              {% elif 'job' in req.DocumentTypeID.DocumentTypeName|lower or 'seeker' in req.DocumentTypeID.DocumentTypeName|lower %}
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200/90 shadow-2xs">
+                  <i data-lucide="award" style="width: 13px; height: 13px;" class="text-teal-600 shrink-0"></i>
+                  <span>{{ req.DocumentTypeID.DocumentTypeName }}</span>
+                </span>
+              {% else %}
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs">
+                  <i data-lucide="file-text" style="width: 13px; height: 13px;" class="text-slate-500 shrink-0"></i>
+                  <span>{{ req.DocumentTypeID.DocumentTypeName }}</span>
+                </span>
+              {% endif %}
+            </td>
             <td><span class="text-xs text-slate-600">{{ req.Purpose|truncatechars:40 }}</span></td>
             <td>
               <span class="font-bold text-xs">₱{{ req.DocumentTypeID.StandardFee|floatformat:2 }}</span>
@@ -73,17 +153,29 @@
               {% endif %}
             </td>
             <td>
-              {% if req.RequestStatus == 'Approved' or req.RequestStatus == 'Released' %}
-                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800 border border-green-200">
-                  <i data-lucide="check" style="width: 12px; height: 12px;"></i> {{ req.RequestStatus }}
+              {% if req.RequestStatus == 'Approved' %}
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-2xs">
+                  <i data-lucide="stamp" style="width: 13px; height: 13px;" class="text-emerald-700"></i>
+                  <span>Approved</span>
+                </span>
+              {% elif req.RequestStatus == 'Released' %}
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-900 border border-indigo-300 shadow-2xs">
+                  <i data-lucide="check-check" style="width: 13px; height: 13px;" class="text-indigo-700"></i>
+                  <span>Released</span>
                 </span>
               {% elif req.RequestStatus == 'Pending' %}
-                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                  <i data-lucide="clock" style="width: 12px; height: 12px;"></i> Pending
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs">
+                  <i data-lucide="clock" style="width: 13px; height: 13px;" class="text-amber-700"></i>
+                  <span>Pending</span>
+                </span>
+              {% elif req.RequestStatus == 'Rejected' %}
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-900 border border-rose-300 shadow-2xs">
+                  <i data-lucide="x-circle" style="width: 13px; height: 13px;" class="text-rose-700"></i>
+                  <span>Rejected</span>
                 </span>
               {% else %}
-                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-200">
-                  <i data-lucide="x" style="width: 12px; height: 12px;"></i> {{ req.RequestStatus }}
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300">
+                  {{ req.RequestStatus }}
                 </span>
               {% endif %}
             </td>
@@ -163,21 +255,63 @@
 <div class="md:hidden space-y-4">
   {% for req in requests %}
     <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
-      <div class="flex items-center justify-between border-b border-slate-100 pb-2">
-        <strong class="text-sm font-bold text-slate-900">{{ req.DocumentTypeID.DocumentTypeName }}</strong>
-        {% if req.RequestStatus == 'Approved' or req.RequestStatus == 'Released' %}
-          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-green-100 text-green-800">
-            <i data-lucide="check" style="width: 10px; height: 10px;"></i> {{ req.RequestStatus }}
-          </span>
-        {% elif req.RequestStatus == 'Pending' %}
-          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">
-            <i data-lucide="clock" style="width: 10px; height: 10px;"></i> Pending
-          </span>
-        {% else %}
-          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-800">
-            {{ req.RequestStatus }}
-          </span>
-        {% endif %}
+      <div class="flex items-center justify-between border-b border-slate-100 pb-2 gap-2">
+        <div class="flex-1 min-w-0">
+          {% if 'clearance' in req.DocumentTypeID.DocumentTypeName|lower and 'business' not in req.DocumentTypeID.DocumentTypeName|lower %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+              <i data-lucide="shield-check" style="width: 11px; height: 11px;" class="text-sky-600"></i>
+              <span class="truncate">{{ req.DocumentTypeID.DocumentTypeName }}</span>
+            </span>
+          {% elif 'indigency' in req.DocumentTypeID.DocumentTypeName|lower %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+              <i data-lucide="heart-handshake" style="width: 11px; height: 11px;" class="text-amber-600"></i>
+              <span class="truncate">{{ req.DocumentTypeID.DocumentTypeName }}</span>
+            </span>
+          {% elif 'residency' in req.DocumentTypeID.DocumentTypeName|lower %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+              <i data-lucide="home" style="width: 11px; height: 11px;" class="text-emerald-600"></i>
+              <span class="truncate">{{ req.DocumentTypeID.DocumentTypeName }}</span>
+            </span>
+          {% elif 'business' in req.DocumentTypeID.DocumentTypeName|lower %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-purple-50 text-purple-800 border border-purple-200">
+              <i data-lucide="briefcase" style="width: 11px; height: 11px;" class="text-purple-600"></i>
+              <span class="truncate">{{ req.DocumentTypeID.DocumentTypeName }}</span>
+            </span>
+          {% elif 'job' in req.DocumentTypeID.DocumentTypeName|lower or 'seeker' in req.DocumentTypeID.DocumentTypeName|lower %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
+              <i data-lucide="award" style="width: 11px; height: 11px;" class="text-teal-600"></i>
+              <span class="truncate">{{ req.DocumentTypeID.DocumentTypeName }}</span>
+            </span>
+          {% else %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+              <i data-lucide="file-text" style="width: 11px; height: 11px;" class="text-slate-500"></i>
+              <span class="truncate">{{ req.DocumentTypeID.DocumentTypeName }}</span>
+            </span>
+          {% endif %}
+        </div>
+        <div>
+          {% if req.RequestStatus == 'Approved' %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+              <i data-lucide="stamp" style="width: 10px; height: 10px;" class="text-emerald-700"></i> Approved
+            </span>
+          {% elif req.RequestStatus == 'Released' %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-900 border border-indigo-300">
+              <i data-lucide="check-check" style="width: 10px; height: 10px;" class="text-indigo-700"></i> Released
+            </span>
+          {% elif req.RequestStatus == 'Pending' %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+              <i data-lucide="clock" style="width: 10px; height: 10px;" class="text-amber-700"></i> Pending
+            </span>
+          {% elif req.RequestStatus == 'Rejected' %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-900 border border-rose-300">
+              <i data-lucide="x-circle" style="width: 10px; height: 10px;" class="text-rose-700"></i> Rejected
+            </span>
+          {% else %}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700">
+              {{ req.RequestStatus }}
+            </span>
+          {% endif %}
+        </div>
       </div>
 
       <div class="text-xs space-y-1 text-slate-600">

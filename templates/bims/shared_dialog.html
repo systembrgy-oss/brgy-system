@@ -1,3 +1,6 @@
+<style>
+  [x-cloak] { display: none !important; }
+</style>
 <!-- ========================================================================
      SHARED ACCESSIBLE CUSTOM DIALOG COMPONENT
      Standards:
@@ -11,6 +14,7 @@
      x-data="sharedDialogManager()"
      x-cloak
      x-show="isOpen"
+     style="display: none;"
      @keydown.escape.window="if (isOpen) cancel()"
      @keydown.tab="handleFocusTrap($event)"
      class="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-slate-900/60 backdrop-blur-xs transition-opacity duration-200"
@@ -82,24 +86,32 @@
 
     <!-- Dialog Actions Footer: PRIMARY ACTION FIRST (per standards) -->
     <div class="px-5 py-3.5 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-2.5">
-      <!-- 1. PRIMARY ACTION BUTTON (FIRST) -->
+      <!-- 1. PRIMARY ACTION BUTTON (FIRST - with Anti-Spam Disable) -->
       <button type="button"
               x-ref="primaryBtn"
               @click="confirmAction()"
+              :disabled="isSubmitting"
               :class="{
                 'bg-emerald-600 hover:bg-emerald-700 text-white focus:ring-emerald-500': variant === 'emerald' || variant === 'success',
                 'bg-red-600 hover:bg-red-700 text-white focus:ring-red-500': variant === 'danger' || variant === 'red',
-                'bg-[#0b5cad] hover:bg-[#084887] text-white focus:ring-[#0b5cad]': variant === 'primary' || variant === 'info' || variant === 'warning' || variant === 'amber'
+                'bg-amber-600 hover:bg-amber-700 text-white focus:ring-amber-500': variant === 'warning' || variant === 'amber',
+                'bg-[#0b5cad] hover:bg-[#084887] text-white focus:ring-[#0b5cad]': variant === 'primary' || variant === 'info',
+                'opacity-60 cursor-not-allowed pointer-events-none': isSubmitting
               }"
-              class="w-full sm:w-auto inline-flex items-center justify-center font-bold text-xs px-4 py-2.5 rounded-lg transition-colors shadow-xs outline-none focus:ring-2 focus:ring-offset-2 min-h-[40px]">
-        <span x-text="confirmText">Confirm</span>
+              class="w-full sm:w-auto inline-flex items-center justify-center font-bold text-xs px-4 py-2.5 rounded-lg transition-all shadow-xs outline-none focus:ring-2 focus:ring-offset-2 min-h-[40px]">
+        <template x-if="isSubmitting">
+          <svg class="animate-spin -ml-1 mr-2 h-3.5 w-3.5 text-white inline-block shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+        </template>
+        <span x-text="isSubmitting ? 'Processing...' : confirmText">Confirm</span>
       </button>
 
-      <!-- 2. SECONDARY / CANCEL BUTTON (Only shown for confirms) -->
+      <!-- 2. SECONDARY / CANCEL BUTTON (Only shown for confirms - with Disable protection) -->
       <template x-if="isConfirmMode">
         <button type="button"
                 x-ref="cancelBtn"
                 @click="cancel()"
+                :disabled="isSubmitting"
+                :class="{ 'opacity-50 pointer-events-none': isSubmitting }"
                 class="w-full sm:w-auto inline-flex items-center justify-center font-semibold text-xs px-4 py-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition-colors outline-none focus:ring-2 focus:ring-slate-300 min-h-[40px]">
           <span x-text="cancelText">Cancel</span>
         </button>
@@ -118,6 +130,7 @@
       cancelText: 'Cancel',
       variant: 'primary', // 'primary', 'emerald', 'danger', 'warning'
       isConfirmMode: true,
+      isSubmitting: false,
       triggerElement: null,
       resolvePromise: null,
 
@@ -180,16 +193,25 @@
       },
 
       open() {
+        this.isSubmitting = false;
         this.isOpen = true;
         // Move focus into the primary action button after render
         this.$nextTick(() => {
           if (this.$refs.primaryBtn) {
+            this.$refs.primaryBtn.disabled = false;
+            this.$refs.primaryBtn.style.pointerEvents = '';
             this.$refs.primaryBtn.focus();
           }
         });
       },
 
       confirmAction() {
+        if (this.isSubmitting) return;
+        this.isSubmitting = true;
+        if (this.$refs.primaryBtn) {
+          this.$refs.primaryBtn.disabled = true;
+          this.$refs.primaryBtn.style.pointerEvents = 'none';
+        }
         this.close(true);
       },
 
@@ -235,10 +257,17 @@
     };
   }
 
-  // Global declarative data-confirm handler for any button or link
+  // Global declarative data-confirm handler for any button or link with Anti-Spam Click & Disable
   document.addEventListener('click', async function(e) {
     const trigger = e.target.closest('[data-confirm]');
     if (!trigger) return;
+
+    // Ignore if already disabled or currently submitting to prevent spamming
+    if (trigger.disabled || trigger.getAttribute('data-submitting') === 'true' || trigger.style.pointerEvents === 'none') {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
 
     e.preventDefault();
     e.stopPropagation();
@@ -259,20 +288,39 @@
     });
 
     if (ok) {
+      // Immediately disable the trigger element to prevent spamming
+      trigger.setAttribute('data-submitting', 'true');
+      trigger.style.pointerEvents = 'none';
+      trigger.classList.add('opacity-70', 'cursor-wait');
+
       if (typeof window.markClean === 'function') {
         window.markClean();
       }
       if (trigger.tagName === 'A' && trigger.href) {
         window.location.href = trigger.href;
       } else if (trigger.form) {
+        if (trigger.form.dataset.submitting === 'true') return;
+        trigger.form.dataset.submitting = 'true';
+
         // If it's a submit button with a name & value, append as hidden input so Django view gets the action
         if (trigger.name && trigger.value) {
-          const hiddenInput = document.createElement('input');
-          hiddenInput.type = 'hidden';
-          hiddenInput.name = trigger.name;
+          let hiddenInput = trigger.form.querySelector(`input[type="hidden"][name="${trigger.name}"]`);
+          if (!hiddenInput) {
+            hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.name = trigger.name;
+            trigger.form.appendChild(hiddenInput);
+          }
           hiddenInput.value = trigger.value;
-          trigger.form.appendChild(hiddenInput);
         }
+
+        // Disable all submit buttons on this form to prevent repeated clicks
+        trigger.form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(btn => {
+          btn.style.pointerEvents = 'none';
+          btn.classList.add('opacity-70');
+          setTimeout(() => { btn.disabled = true; }, 10);
+        });
+
         trigger.form.submit();
       }
     }

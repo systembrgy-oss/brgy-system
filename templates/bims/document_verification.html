@@ -5,57 +5,241 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Document Authentication Portal | {{ barangay_info.BarangayName|default:"Barangay Portal" }}</title>
-  <link rel="stylesheet" href="{% static 'css/bims.css' %}">
+  
+  <!-- Inter Google Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            civic: {
+              50: '#f0f7ff',
+              100: '#ebf5ff',
+              500: '#0b5cad',
+              600: '#0b5cad',
+              700: '#084887',
+              800: '#063564',
+              900: '#042343',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Alpine.js -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.10/dist/cdn.min.js"></script>
+
+  <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    [x-cloak] { display: none !important; }
+  </style>
 </head>
-<body class="auth-wrapper" style="background: #0f172a;">
-  <div class="auth-card" style="max-width: 520px;">
-    {% if doc %}
-      <div style="text-align: center; margin-bottom: 20px;">
-        <div style="width: 60px; height: 60px; border-radius: 50%; background: #dcfce7; color: #15803d; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;">
-          <i data-lucide="check-circle" style="width: 36px; height: 36px;"></i>
+<body class="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between antialiased selection:bg-sky-500 selection:text-white">
+
+  <!-- Shared Accessible Dialog Component -->
+  
+
+  <!-- Top Simple Navigation Bar -->
+  <header class="w-full border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md px-4 sm:px-8 py-3.5 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      {% if barangay_info.BarangayLogo %}
+        <img src="{{ barangay_info.BarangayLogo.url }}" alt="Barangay Logo" class="w-8 h-8 rounded-full object-cover ring-2 ring-slate-700">
+      {% else %}
+        <div class="w-8 h-8 rounded-full bg-sky-600/30 text-sky-400 flex items-center justify-center font-bold text-xs ring-1 ring-sky-500/50">
+          <i data-lucide="shield-check" class="w-4 h-4"></i>
         </div>
-        <h2 style="font-size: 1.3rem; font-weight: 800; color: #15803d;">AUTHENTIC DOCUMENT VERIFIED</h2>
-        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">
-          Officially recorded in {{ barangay_info.BarangayName|default:"Barangay" }} BIMS database
-        </p>
+      {% endif %}
+      <div>
+        <h1 class="text-sm font-bold text-white tracking-tight leading-tight">
+          {{ barangay_info.BarangayName|default:"Barangay Portal" }}
+        </h1>
+        <p class="text-[11px] text-slate-400 font-medium">Official Document Verification Registry</p>
       </div>
+    </div>
 
-
-      <div style="background: #f8fafc; border: 1px solid var(--surface-border); border-radius: var(--radius-md); padding: 18px; font-size: 0.88rem; display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
-        <div><strong>Certificate Type:</strong> {{ doc.DocumentTypeID.DocumentTypeName }}</div>
-        <div><strong>Issued To:</strong> {{ doc.ResidentID.full_name }}</div>
-        <div><strong>Purok & Address:</strong> {{ doc.ResidentID.HouseholdID.StreetAddress }}, {{ doc.ResidentID.HouseholdID.PurokID.PurokName }}</div>
-        <div><strong>Purpose:</strong> {{ doc.Purpose }}</div>
-        <div><strong>Date of Request:</strong> {{ doc.RequestDate|date:"F d, Y - h:i A" }}</div>
-        <div><strong>Status:</strong> <span class="badge badge-approved">{{ doc.RequestStatus }}</span></div>
-        {% if doc.PaymentID %}
-          <div><strong>Payment OR #:</strong> {{ doc.PaymentID.OfficialReceiptNo }} (PHP {{ doc.PaymentID.AmountPaid|floatformat:2 }})</div>
-        {% endif %}
-        <div><strong>Unique Security Hash:</strong> <code style="font-size: 0.8rem;">{{ doc.QRCodeHash }}</code></div>
-      </div>
-
-    {% else %}
-      <div style="text-align: center; margin-bottom: 20px;">
-        <div style="width: 60px; height: 60px; border-radius: 50%; background: #fee2e2; color: #b91c1c; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;">
-          <i data-lucide="alert-octagon" style="width: 36px; height: 36px;"></i>
-        </div>
-        <h2 style="font-size: 1.3rem; font-weight: 800; color: #b91c1c;">INVALID OR UNVERIFIED DOCUMENT</h2>
-        <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 6px;">
-          No matching certificate was found for hash: <code>{{ qr_hash }}</code>. This document may be counterfeit or revoked.
-        </p>
-      </div>
-    {% endif %}
-
-    <div style="text-align: center; margin-top: 10px;">
-      <a href="{% url 'login' %}" class="btn btn-secondary btn-sm">
-        <i data-lucide="arrow-left" style="width: 14px; height: 14px;"></i> Return to BIMS Portal
+    <div class="flex items-center gap-2">
+      <a href="{% url 'landing_page' %}" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/80 transition-colors">
+        <i data-lucide="home" class="w-3.5 h-3.5"></i>
+        <span>Home</span>
+      </a>
+      <a href="{% url 'login' %}" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition-colors border border-slate-700">
+        <i data-lucide="log-in" class="w-3.5 h-3.5"></i>
+        <span>Staff Login</span>
       </a>
     </div>
-  </div>
+  </header>
 
-  <script>
-    lucide.createIcons();
+  <!-- Main Center Content -->
+  <main class="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8">
+    <div class="w-full max-w-xl mx-auto space-y-6">
+
+      <!-- Header Icon & Status Headline -->
+      <div class="text-center space-y-2">
+        {% if doc %}
+          <div class="w-16 h-16 rounded-full bg-emerald-500/10 border-2 border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto shadow-lg shadow-emerald-950/40 animate-pulse">
+            <i data-lucide="check-circle-2" class="w-9 h-9"></i>
+          </div>
+          <h2 class="text-xl sm:text-2xl font-extrabold text-emerald-400 tracking-tight">
+            AUTHENTIC DOCUMENT VERIFIED
+          </h2>
+          <p class="text-xs sm:text-sm text-slate-400">
+            Officially issued and recorded in {{ barangay_info.BarangayName|default:"Barangay" }} BIMS database
+          </p>
+        {% elif searched %}
+          <div class="w-16 h-16 rounded-full bg-red-500/10 border-2 border-red-500/30 text-red-400 flex items-center justify-center mx-auto shadow-lg shadow-red-950/40">
+            <i data-lucide="alert-octagon" class="w-9 h-9"></i>
+          </div>
+          <h2 class="text-xl sm:text-2xl font-extrabold text-red-400 tracking-tight">
+            INVALID OR UNVERIFIED DOCUMENT
+          </h2>
+          <p class="text-xs sm:text-sm text-slate-400">
+            No matching certificate record was found for this security hash.
+          </p>
+        {% else %}
+          <div class="w-16 h-16 rounded-full bg-sky-500/10 border-2 border-sky-500/30 text-sky-400 flex items-center justify-center mx-auto shadow-lg shadow-sky-950/40">
+            <i data-lucide="shield-check" class="w-9 h-9"></i>
+          </div>
+          <h2 class="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+            Verify a Barangay Document
+          </h2>
+          <p class="text-xs sm:text-sm text-slate-400">
+            Scan the QR code or enter the security hash printed on the official certificate.
+          </p>
+        {% endif %}
+      </div>
+
+      <!-- Verified Certificate Details Card (if found) -->
+      {% if doc %}
+      <div class="bg-white text-slate-900 rounded-2xl p-5 sm:p-6 shadow-2xl border border-slate-200/80 space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Verified Certificate</span>
+            <h3 class="text-base font-extrabold text-slate-900 leading-tight">
+              {{ doc.DocumentTypeID.DocumentTypeName }}
+            </h3>
+          </div>
+          {% if doc.RequestStatus == 'Released' %}
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-900 border border-indigo-300">
+              <i data-lucide="check-check" class="w-3.5 h-3.5 text-indigo-700"></i> Released / Issued
+            </span>
+          {% elif doc.RequestStatus == 'Approved' %}
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+              <i data-lucide="stamp" class="w-3.5 h-3.5 text-emerald-700"></i> Approved & Digitally Stamped
+            </span>
+          {% else %}
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-800 border border-slate-300">
+              {{ doc.RequestStatus }}
+            </span>
+          {% endif %}
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <div class="space-y-1">
+            <span class="text-slate-500 font-medium">Issued To</span>
+            <p class="font-bold text-slate-900 text-sm">{{ doc.ResidentID.full_name }}</p>
+          </div>
+
+          <div class="space-y-1">
+            <span class="text-slate-500 font-medium">Purpose</span>
+            <p class="font-semibold text-slate-800">{{ doc.Purpose }}</p>
+          </div>
+
+          <div class="space-y-1 sm:col-span-2">
+            <span class="text-slate-500 font-medium">Purok & Address</span>
+            <p class="text-slate-700">
+              {{ doc.ResidentID.HouseholdID.StreetAddress|default:"Official Barangay Resident" }}
+              {% if doc.ResidentID.HouseholdID.PurokID %}, {{ doc.ResidentID.HouseholdID.PurokID.PurokName }}{% endif %}
+            </p>
+          </div>
+
+          <div class="space-y-1">
+            <span class="text-slate-500 font-medium">Date of Request</span>
+            <p class="text-slate-700 font-medium">{{ doc.RequestDate|date:"F d, Y - h:i A" }}</p>
+          </div>
+
+          <div class="space-y-1">
+            <span class="text-slate-500 font-medium">Payment Record</span>
+            <p class="text-slate-700">
+              {% if doc.PaymentID %}
+                <span class="font-semibold text-slate-900">{{ doc.PaymentID.OfficialReceiptNo }}</span> (PHP {{ doc.PaymentID.AmountPaid|floatformat:2 }})
+              {% else %}
+                <span class="text-slate-400 italic">Exempt / No Fee</span>
+              {% endif %}
+            </p>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-500 bg-slate-50 -mx-5 -mb-5 sm:-mx-6 sm:-mb-6 p-4 rounded-b-2xl">
+          <div class="flex items-center gap-1.5">
+            <i data-lucide="shield" class="w-3.5 h-3.5 text-emerald-600 shrink-0"></i>
+            <span>Hash: <code class="font-mono font-bold text-slate-800">{{ doc.QRCodeHash }}</code></span>
+          </div>
+          <span class="text-slate-400">Jurisdiction: {{ barangay_info.CityOrMunicipality|default:"Butuan City" }}</span>
+        </div>
+      </div>
+      {% elif searched %}
+      <div class="bg-red-950/40 border border-red-800/60 rounded-2xl p-5 text-red-200 text-xs sm:text-sm space-y-2">
+        <p class="font-semibold">
+          No matching certificate was found for hash: <code class="font-mono bg-red-900/60 px-1.5 py-0.5 rounded text-red-100 font-bold">{{ qr_hash }}</code>
+        </p>
+        <p class="text-xs text-red-300/80 leading-relaxed">
+          Please confirm the security hash from the physical certificate. If you suspect an unauthorized or counterfeit document, please report it to the Barangay Hall immediately.
+        </p>
+      </div>
+      {% endif %}
+
+      <!-- Search Box with "Verify" Button triggering the Shared Component Modal -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3">
+        <label for="hashInput" class="block text-xs font-semibold text-slate-300">
+          Verify Another Document Hash
+        </label>
+        
+        <form id="verifyForm" method="GET" action="{% url 'document_verify_search' %}" class="flex flex-col sm:flex-row gap-2.5">
+          <input type="text" 
+                 id="hashInput" 
+                 name="hash" 
+                 value="{{ qr_hash|default:'' }}" 
+                 placeholder="e.g. BIMS-3C0C78CE5721" 
+                 required
+                 class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-white font-mono text-xs sm:text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none uppercase placeholder-slate-500 transition-all">
+          
+          <button type="submit" 
+                  id="verifyBtn"
+                  class="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#0b5cad] hover:bg-[#084887] active:scale-95 text-white font-bold text-xs sm:text-sm transition-all shadow-md focus:ring-2 focus:ring-offset-2 focus:ring-[#0b5cad] shrink-0">
+            <i data-lucide="search" class="w-4 h-4"></i>
+            <span id="verifyBtnText">Verify</span>
+          </button>
+        </form>
+
+        <p class="text-[11px] text-slate-400">
+          Tip: You can scan the QR code printed on the bottom-left of the document directly using any smartphone camera.
+        </p>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Simple Footer -->
+  <footer class="w-full border-t border-slate-900 bg-slate-950/80 py-4 px-4 text-center text-xs text-slate-500">
+    &copy; {% now "Y" %} {{ barangay_info.BarangayName|default:"Barangay Information Management System" }}. All rights reserved.
+  </footer>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+    });
   </script>
 </body>
 </html>

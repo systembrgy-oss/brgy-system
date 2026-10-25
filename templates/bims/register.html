@@ -358,6 +358,36 @@
   <script>
     document.addEventListener("DOMContentLoaded", function () {
       lucide.createIcons();
+
+      // Anti-Spam Double Click & Disable on Citizen Registration Submit
+      const regForm = document.querySelector('form');
+      if (regForm) {
+        regForm.addEventListener('submit', function(e) {
+          if (regForm.dataset.submitting === 'true') {
+            e.preventDefault();
+            return false;
+          }
+          if (typeof regForm.checkValidity === 'function' && !regForm.checkValidity()) {
+            return;
+          }
+          regForm.dataset.submitting = 'true';
+          const btn = regForm.querySelector('button[type="submit"]');
+          if (btn) {
+            btn.style.pointerEvents = 'none';
+            btn.style.cursor = 'wait';
+            btn.classList.add('opacity-75');
+            const icon = btn.querySelector('[data-lucide], svg');
+            if (icon) {
+              icon.outerHTML = '<svg class="animate-spin -ml-1 mr-2 h-4 w-4 inline-block text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>';
+            }
+            const textSpan = btn.querySelector('span');
+            if (textSpan) {
+              textSpan.textContent = 'Submitting Application...';
+            }
+            setTimeout(() => { btn.disabled = true; }, 10);
+          }
+        });
+      }
     });
   </script>
 </body>

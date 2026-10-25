@@ -4,9 +4,13 @@
 {% block page_icon %}<i data-lucide="scale"></i>{% endblock %}
 
 {% block page_actions %}
-  <a href="{% url 'incident_create' %}" class="btn btn-primary btn-sm">
-    <i data-lucide="file-plus-2" style="width: 15px; height: 15px;"></i>
-    <span>Record New Incident</span>
+  <a href="{% url 'incident_create' %}" class="btn btn-primary btn-sm min-h-[40px] px-3.5 font-bold">
+    <i data-lucide="{% if role_name == 'People' %}file-plus{% else %}file-plus-2{% endif %}" style="width: 15px; height: 15px;"></i>
+    {% if role_name == 'People' %}
+      <span x-text="lang === 'fil' ? 'Maghain ng Reklamo' : 'File Complaint'">File Complaint</span>
+    {% else %}
+      <span x-text="lang === 'fil' ? 'Magtala ng Bagong Insidente' : 'Record New Incident'">Record New Incident</span>
+    {% endif %}
   </a>
 {% endblock %}
 

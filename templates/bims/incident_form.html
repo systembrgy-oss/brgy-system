@@ -1,6 +1,6 @@
 {% extends 'bims/base.html' %}
 
-{% block page_title %}File Blotter / Complaint{% endblock %}
+{% block page_title %}{% if role_name == 'People' %}File a Barangay Complaint (Katarungang Pambarangay){% else %}File Blotter / Incident{% endif %}{% endblock %}
 {% block page_icon %}<i data-lucide="shield-alert"></i>{% endblock %}
 
 {% block page_actions %}
@@ -14,8 +14,8 @@
 <div class="card" style="max-width: 760px; margin: 0 auto;">
   <div class="card-header">
     <div class="card-title">
-      <i data-lucide="file-text"></i>
-      <span>Incident & Complaint Intake (Katarungang Pambarangay)</span>
+      <i data-lucide="{% if role_name == 'People' %}file-plus{% else %}file-text{% endif %}"></i>
+      <span>{% if role_name == 'People' %}Citizen Complaint Intake (Katarungang Pambarangay){% else %}Incident & Complaint Intake (Katarungang Pambarangay){% endif %}</span>
     </div>
   </div>
   <div class="card-body">
@@ -63,9 +63,9 @@
 
       <div style="display: flex; justify-content: flex-end; gap: 12px;">
         <a href="{% url 'incidents_list' %}" class="btn btn-secondary">Cancel</a>
-        <button type="submit" class="btn btn-primary">
-          <i data-lucide="save" style="width: 16px; height: 16px;"></i>
-          <span>File Complaint</span>
+        <button type="submit" class="btn btn-primary min-h-[44px] px-5 font-bold">
+          <i data-lucide="send" style="width: 16px; height: 16px;"></i>
+          <span>{% if role_name == 'People' %}Submit Complaint{% else %}Record Incident{% endif %}</span>
         </button>
       </div>
     </form>

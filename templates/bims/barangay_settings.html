@@ -7,6 +7,8 @@
 <div class="space-y-6"
      x-data="{
        activeTab: '{{ active_tab|default:'profile' }}',
+       userSubTab: '{{ active_subtab|default:'list' }}',
+       permSearch: '',
        editModal: false,
        editUserId: null,
        editUsername: '',
@@ -20,8 +22,104 @@
          this.editEmail = email;
          this.newPassword = '';
          this.editModal = true;
+       },
+
+       // Document Type Templates & State
+       docTemplates: {
+         {% for dt in document_types %}
+           '{{ dt.DocumentTypeID }}': {
+             'name': '{{ dt.DocumentTypeName|escapejs }}',
+             'body': `{{ dt.TemplateBody|default:''|escapejs }}`
+           },
+         {% endfor %}
+       },
+       selectedDocType: '{{ selected_doc_type_id|default:document_types.first.DocumentTypeID }}',
+       previewTitle: '{{ document_types.first.DocumentTypeName|default:"BARANGAY CLEARANCE"|escapejs }}',
+       letterOfficeHeader: '{{ settings.LetterOfficeHeader|default:"OFFICE OF THE PUNONG BARANGAY"|escapejs }}',
+       letterSalutation: '{{ settings.LetterSalutation|default:"TO WHOM IT MAY CONCERN:"|escapejs }}',
+       letterBody: `{{ settings.LetterBodyTemplate|default:document_types.first.TemplateBody|default:""|escapejs }}`,
+       letterClosing: `{{ settings.LetterClosing|default:"Issued this {DATE} at {BARANGAY_HALL_ADDRESS} upon request of the above-named person for whatever legal intents and purposes it may serve."|escapejs }}`,
+       letterSignatoryTitle: '{{ settings.LetterSignatoryTitle|default:"Punong Barangay"|escapejs }}',
+       showWatermark: {% if settings.ShowSealWatermark %}true{% else %}false{% endif %},
+
+       onDocTypeChange() {
+         if (this.docTemplates[this.selectedDocType]) {
+           const dt = this.docTemplates[this.selectedDocType];
+           this.previewTitle = dt.name.toUpperCase();
+           if (dt.body && dt.body.trim().length > 0) {
+             this.letterBody = dt.body;
+           }
+         }
+       },
+
+       insertTag(tag) {
+         const textarea = document.getElementById('letterBodyTextarea');
+         if (!textarea) return;
+         const start = textarea.selectionStart || 0;
+         const end = textarea.selectionEnd || 0;
+         const current = this.letterBody || '';
+         this.letterBody = current.substring(0, start) + tag + current.substring(end);
+         this.$nextTick(() => {
+           textarea.focus();
+           textarea.setSelectionRange(start + tag.length, start + tag.length);
+         });
+       },
+
+       applyPreset(formId, preset) {
+         const form = document.getElementById(formId);
+         if (!form) return;
+         const chkApprove = form.querySelector('[name=can_approve]');
+         const chkReject = form.querySelector('[name=can_reject]');
+         const chkAdd = form.querySelector('[name=can_add]');
+         const chkEdit = form.querySelector('[name=can_edit]');
+         const chkDelete = form.querySelector('[name=can_delete]');
+         const chkMeds = form.querySelector('[name=can_distribute_medicine]');
+         const chkDoc = form.querySelector('[name=can_give_document]');
+
+         if (preset === 'admin') {
+           if (chkApprove) chkApprove.checked = true;
+           if (chkReject) chkReject.checked = true;
+           if (chkAdd) chkAdd.checked = true;
+           if (chkEdit) chkEdit.checked = true;
+           if (chkDelete) chkDelete.checked = true;
+           if (chkMeds) chkMeds.checked = true;
+           if (chkDoc) chkDoc.checked = true;
+         } else if (preset === 'staff') {
+           if (chkApprove) chkApprove.checked = true;
+           if (chkReject) chkReject.checked = true;
+           if (chkAdd) chkAdd.checked = true;
+           if (chkEdit) chkEdit.checked = true;
+           if (chkDelete) chkDelete.checked = false;
+           if (chkMeds) chkMeds.checked = true;
+           if (chkDoc) chkDoc.checked = true;
+         } else if (preset === 'health') {
+           if (chkApprove) chkApprove.checked = false;
+           if (chkReject) chkReject.checked = false;
+           if (chkAdd) chkAdd.checked = true;
+           if (chkEdit) chkEdit.checked = true;
+           if (chkDelete) chkDelete.checked = false;
+           if (chkMeds) chkMeds.checked = true;
+           if (chkDoc) chkDoc.checked = false;
+         } else if (preset === 'doc') {
+           if (chkApprove) chkApprove.checked = true;
+           if (chkReject) chkReject.checked = true;
+           if (chkAdd) chkAdd.checked = false;
+           if (chkEdit) chkEdit.checked = false;
+           if (chkDelete) chkDelete.checked = false;
+           if (chkMeds) chkMeds.checked = false;
+           if (chkDoc) chkDoc.checked = true;
+         } else if (preset === 'viewer') {
+           if (chkApprove) chkApprove.checked = false;
+           if (chkReject) chkReject.checked = false;
+           if (chkAdd) chkAdd.checked = false;
+           if (chkEdit) chkEdit.checked = false;
+           if (chkDelete) chkDelete.checked = false;
+           if (chkMeds) chkMeds.checked = false;
+           if (chkDoc) chkDoc.checked = false;
+         }
        }
-     }">
+     }"
+     x-init="onDocTypeChange(); $watch('activeTab', () => $nextTick(() => lucide.createIcons()))">
 
   <!-- Unified System Tabs Navigation -->
   <div class="bg-white rounded-xl border border-slate-200 p-1.5 flex flex-wrap items-center gap-1.5 shadow-xs">
@@ -45,6 +143,19 @@
       </span>
     </button>
 
+    <!-- TAB: Document Letter & Official Seals -->
+    <button type="button"
+            @click="activeTab = 'letter'; history.replaceState(null, '', '?tab=letter')"
+            :class="activeTab === 'letter' ? 'bg-[#0B5CAD] text-white font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-semibold'"
+            class="px-4 py-2.5 rounded-lg text-xs flex items-center gap-2 transition-all">
+      <i data-lucide="file-text" class="w-4 h-4"></i>
+      <span>Document Letter & Seals</span>
+      <span class="text-[9px] uppercase px-1.5 py-0.5 rounded font-bold tracking-wider"
+            :class="activeTab === 'letter' ? 'bg-amber-400 text-slate-950' : 'bg-amber-100 text-amber-800'">
+        Letterhead
+      </span>
+    </button>
+
     <button type="button"
             @click="activeTab = 'audit'; history.replaceState(null, '', '?tab=audit')"
             :class="activeTab === 'audit' ? 'bg-[#0B5CAD] text-white font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-semibold'"
@@ -54,6 +165,19 @@
       <span class="text-[10px] px-1.5 py-0.2 rounded-full font-mono"
             :class="activeTab === 'audit' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'">
         {{ logs.count }}
+      </span>
+    </button>
+
+    <!-- TAB: My Profile (Change Username, Name & Password) -->
+    <button type="button"
+            @click="activeTab = 'my_profile'; history.replaceState(null, '', '?tab=my_profile')"
+            :class="activeTab === 'my_profile' ? 'bg-[#0B5CAD] text-white font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-semibold'"
+            class="px-4 py-2.5 rounded-lg text-xs flex items-center gap-2 transition-all">
+      <i data-lucide="user-check" class="w-4 h-4"></i>
+      <span>Profile</span>
+      <span class="text-[9px] uppercase px-1.5 py-0.5 rounded font-bold tracking-wider"
+            :class="activeTab === 'my_profile' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'">
+        {{ request.user.username }}
       </span>
     </button>
   </div>
@@ -135,7 +259,6 @@
               </div>
             </div>
 
-            <!-- PRIMARY ACTION FIRST -->
             <div style="display: flex; justify-content: flex-start; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--surface-border);">
               <button type="submit" class="btn btn-primary min-h-[44px] px-6 font-bold">
                 <i data-lucide="save" style="width: 16px; height: 16px;"></i>
@@ -188,209 +311,825 @@
   <!-- ============================================================== -->
   <!-- TAB 2: USER ACCOUNTS & ROLE-BASED ACCESS CONTROL (RBAC)        -->
   <!-- ============================================================== -->
-  <div x-show="activeTab === 'users'" x-cloak class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-    <!-- User List (8 cols) -->
-    <div class="lg:col-span-8 card">
-      <div class="card-header flex items-center justify-between">
-        <div class="card-title">
-          <i data-lucide="users" class="text-[#0B5CAD]"></i>
-          <span>System Users & Role Privileges</span>
-        </div>
-        <span class="text-xs text-slate-500 font-semibold">{{ users.count }} Total User{{ users.count|pluralize }}</span>
+  <div x-show="activeTab === 'users'" x-cloak class="space-y-4">
+    <!-- Sub-tab Navigation inside User Accounts & RBAC -->
+    <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+      <div class="flex items-center gap-2">
+        <button type="button"
+                @click="userSubTab = 'list'; history.replaceState(null, '', '?tab=users&sub=list')"
+                :class="userSubTab === 'list' ? 'bg-slate-900 text-white font-bold' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 font-semibold'"
+                class="px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition">
+          <i data-lucide="users" class="w-3.5 h-3.5"></i>
+          <span>Account Roster ({{ users.count }})</span>
+        </button>
+
+        <button type="button"
+                @click="userSubTab = 'permissions'; history.replaceState(null, '', '?tab=users&sub=permissions')"
+                :class="userSubTab === 'permissions' ? 'bg-[#0B5CAD] text-white font-bold shadow-xs' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 font-semibold'"
+                class="px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition">
+          <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i>
+          <span>Permissions Matrix</span>
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+        </button>
       </div>
-      <div class="table-responsive">
-        <table class="custom-table">
-          <thead>
-            <tr>
-              <th>Username & Email</th>
-              <th>Role</th>
-              <th>Linked Resident</th>
-              <th>Account Status</th>
-              <th class="text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for u in users %}
-              <tr class="{% if not u.is_active %}opacity-60 bg-slate-50/75{% endif %}">
-                <td>
-                  <div class="flex items-center gap-2">
-                    <div class="w-7 h-7 rounded-full bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center shrink-0">
-                      {{ u.username|make_list|first|upper }}
-                    </div>
-                    <div>
-                      <strong class="text-slate-900 text-xs block">{{ u.username }}</strong>
-                      <span class="text-[11px] text-slate-400">{{ u.email|default:"No email set" }}</span>
-                    </div>
-                  </div>
-                </td>
-                <td>
-                  <span class="badge 
-                    {% if u.RoleID.RoleName == 'Admin' %}badge-rejected
-                    {% elif u.RoleID.RoleName == 'Staff' %}badge-mediation
-                    {% else %}badge-approved{% endif %} font-bold">
-                    {{ u.RoleID.RoleName|default:"Superuser" }}
-                  </span>
-                  {% if u.is_staff %}
-                    <span class="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 ml-1">Staff</span>
-                  {% endif %}
-                </td>
-                <td>
-                  {% if u.ResidentID %}
-                    <a href="{% url 'resident_detail' u.ResidentID.ResidentID %}" class="text-xs font-semibold text-[#0B5CAD] hover:underline block">
-                      {{ u.ResidentID.full_name }}
-                    </a>
-                    <span class="text-[11px] text-slate-400 font-mono">{{ u.ResidentID.HouseholdID.HouseholdNumber }}</span>
-                  {% else %}
-                    <span class="text-slate-400 text-xs">Administrative Profile</span>
-                  {% endif %}
-                </td>
-                <td>
-                  {% if u.is_active %}
-                    <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
-                    </span>
-                  {% else %}
-                    <span class="inline-flex items-center gap-1 text-[11px] font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
-                      <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> Disabled
-                    </span>
-                  {% endif %}
-                </td>
-                <td class="text-right">
-                  <!-- Standard UI/UX Floating Three-Dots Dropdown Menu (Teleported Outside Tables) -->
-                  <div class="relative inline-block text-left" x-data="actionMenu()" @close-all-action-menus.window="close()">
-                    <button type="button"
-                            @click="toggle($event)"
-                            class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition border border-transparent hover:border-slate-200"
-                            title="More Actions">
-                      <i data-lucide="more-vertical" style="width: 16px; height: 16px;"></i>
-                    </button>
-                    <template x-teleport="body">
-                      <div x-show="open"
-                           x-cloak
-                           @click.away="close()"
-                           @keydown.escape.window="close()"
-                           :style="coords"
-                           class="fixed z-[99999] w-48 bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 overflow-hidden transform transition-all text-left"
-                           x-transition:enter="transition ease-out duration-100"
-                           x-transition:enter-start="opacity-0 scale-95"
-                           x-transition:enter-end="opacity-100 scale-100">
-                        <button type="button"
-                                @click="openEditUser({{ u.id }}, '{{ u.username|escapejs }}', '{{ u.RoleID.RoleID|default:'' }}', '{{ u.email|escapejs }}'); close();"
-                                class="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-                          <i data-lucide="edit-3" class="w-3.5 h-3.5 text-slate-400"></i>
-                          <span>Edit Privileges</span>
-                        </button>
 
-                        {% if u.id != request.user.id %}
-                          <form method="POST" class="block w-full">
-                            {% csrf_token %}
-                            <input type="hidden" name="action" value="toggle_status">
-                            <input type="hidden" name="user_id" value="{{ u.id }}">
-                            <button type="submit"
-                                    @click="close()"
-                                    data-confirm="{% if u.is_active %}Disable user account '{{ u.username }}'? They will be immediately blocked from logging into the portal.{% else %}Re-activate user account '{{ u.username }}'?{% endif %}"
-                                    data-confirm-title="{% if u.is_active %}Disable User Account{% else %}Activate User Account{% endif %}"
-                                    data-confirm-btn="{% if u.is_active %}Disable Account{% else %}Activate Account{% endif %}"
-                                    data-cancel-btn="Cancel"
-                                    data-confirm-variant="{% if u.is_active %}danger{% else %}emerald{% endif %}"
-                                    class="w-full text-left px-3.5 py-2 text-xs font-semibold {% if u.is_active %}text-amber-700 hover:bg-amber-50{% else %}text-emerald-700 hover:bg-emerald-50{% endif %} flex items-center gap-2">
-                              {% if u.is_active %}
-                                <i data-lucide="user-x" class="w-3.5 h-3.5 text-amber-500"></i>
-                                <span>Deactivate User</span>
-                              {% else %}
-                                <i data-lucide="user-check" class="w-3.5 h-3.5 text-emerald-500"></i>
-                                <span>Activate User</span>
-                              {% endif %}
-                            </button>
-                          </form>
-
-                          <div class="my-1 border-t border-slate-100"></div>
-
-                          <form method="POST" class="block w-full">
-                            {% csrf_token %}
-                            <input type="hidden" name="action" value="delete_user">
-                            <input type="hidden" name="user_id" value="{{ u.id }}">
-                            <button type="submit"
-                                    @click="close()"
-                                    data-confirm="Permanently delete user account '{{ u.username }}'? This action cannot be undone."
-                                    data-confirm-title="Delete User Account"
-                                    data-confirm-btn="Delete User"
-                                    data-cancel-btn="Keep Account"
-                                    data-confirm-variant="danger"
-                                    class="w-full text-left px-3.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2">
-                              <i data-lucide="trash-2" class="w-3.5 h-3.5 text-red-500"></i>
-                              <span>Delete User</span>
-                            </button>
-                          </form>
-                        {% endif %}
-                      </div>
-                    </template>
-                  </div>
-                </td>
-              </tr>
-            {% empty %}
-              <tr><td colspan="5" class="text-center text-slate-400 py-10 text-xs">No users found.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <div class="text-[11px] text-slate-500 font-medium">
+        Universal Rule: <span class="text-emerald-700 font-bold">All accounts have read access</span> to view records.
       </div>
     </div>
 
-    <!-- Create User Form (4 cols) -->
-    <div class="lg:col-span-4 card">
-      <div class="card-header">
-        <div class="card-title">
-          <i data-lucide="user-plus" class="text-[#0B5CAD]"></i>
-          <span>Create User Account</span>
+    <!-- SUB-TAB A: Account Roster & User Creation -->
+    <div x-show="userSubTab === 'list'" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- User List (8 cols) -->
+      <div class="lg:col-span-8 card">
+        <div class="card-header flex items-center justify-between">
+          <div class="card-title">
+            <i data-lucide="users" class="text-[#0B5CAD]"></i>
+            <span>System Users & Registered Accounts</span>
+          </div>
+          <span class="text-xs text-slate-500 font-semibold">{{ users.count }} Total User{{ users.count|pluralize }}</span>
+        </div>
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>Username & Email</th>
+                <th>Role</th>
+                <th>Linked Resident</th>
+                <th>Account Status</th>
+                <th class="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for u in users %}
+                <tr class="{% if not u.is_active %}opacity-60 bg-slate-50/75{% endif %}">
+                  <td>
+                    <div class="flex items-center gap-2">
+                      <div class="w-7 h-7 rounded-full bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center shrink-0">
+                        {{ u.username|make_list|first|upper }}
+                      </div>
+                      <div>
+                        <strong class="text-slate-900 text-xs block">{{ u.username }}</strong>
+                        <span class="text-[11px] text-slate-400">{{ u.email|default:"No email set" }}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="badge 
+                      {% if u.RoleID.RoleName == 'Admin' %}badge-rejected
+                      {% elif u.RoleID.RoleName == 'Staff' %}badge-mediation
+                      {% else %}badge-approved{% endif %} font-bold">
+                      {{ u.RoleID.RoleName|default:"Superuser" }}
+                    </span>
+                    {% if u.is_staff %}
+                      <span class="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 ml-1">Staff</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if u.ResidentID %}
+                      <a href="{% url 'resident_detail' u.ResidentID.ResidentID %}" class="text-xs font-semibold text-[#0B5CAD] hover:underline block">
+                        {{ u.ResidentID.full_name }}
+                      </a>
+                      <span class="text-[11px] text-slate-400 font-mono">{{ u.ResidentID.HouseholdID.HouseholdNumber }}</span>
+                    {% else %}
+                      <span class="text-slate-400 text-xs">Administrative Profile</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if u.is_active %}
+                      <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
+                      </span>
+                    {% else %}
+                      <span class="inline-flex items-center gap-1 text-[11px] font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                        <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> Disabled
+                      </span>
+                    {% endif %}
+                  </td>
+                  <td class="text-right">
+                    <div class="relative inline-block text-left" x-data="actionMenu()" @close-all-action-menus.window="close()">
+                      <button type="button"
+                              @click="toggle($event)"
+                              class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition border border-transparent hover:border-slate-200"
+                              title="More Actions">
+                        <i data-lucide="more-vertical" style="width: 16px; height: 16px;"></i>
+                      </button>
+                      <template x-teleport="body">
+                        <div x-show="open"
+                             x-cloak
+                             @click.away="close()"
+                             @keydown.escape.window="close()"
+                             :style="coords"
+                             class="fixed z-[99999] w-48 bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 overflow-hidden transform transition-all text-left"
+                             x-transition:enter="transition ease-out duration-100"
+                             x-transition:enter-start="opacity-0 scale-95"
+                             x-transition:enter-end="opacity-100 scale-100">
+                          <button type="button"
+                                  @click="openEditUser({{ u.id }}, '{{ u.username|escapejs }}', '{{ u.RoleID.RoleID|default:'' }}', '{{ u.email|escapejs }}'); close();"
+                                  class="w-full text-left px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                            <i data-lucide="edit-3" class="w-3.5 h-3.5 text-slate-400"></i>
+                            <span>Edit Account</span>
+                          </button>
+
+                          <button type="button"
+                                  @click="userSubTab = 'permissions'; close();"
+                                  class="w-full text-left px-3.5 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-50 flex items-center gap-2">
+                            <i data-lucide="shield-alert" class="w-3.5 h-3.5 text-sky-500"></i>
+                            <span>Configure Permissions</span>
+                          </button>
+
+                          {% if u.id != request.user.id %}
+                            <form method="POST" class="block w-full">
+                              {% csrf_token %}
+                              <input type="hidden" name="action" value="toggle_status">
+                              <input type="hidden" name="user_id" value="{{ u.id }}">
+                              <button type="submit"
+                                      @click="close()"
+                                      data-confirm="{% if u.is_active %}Disable user account '{{ u.username }}'? They will be immediately blocked from logging into the portal.{% else %}Re-activate user account '{{ u.username }}'?{% endif %}"
+                                      data-confirm-title="{% if u.is_active %}Disable User Account{% else %}Activate User Account{% endif %}"
+                                      data-confirm-btn="{% if u.is_active %}Disable Account{% else %}Activate Account{% endif %}"
+                                      data-cancel-btn="Cancel"
+                                      data-confirm-variant="{% if u.is_active %}danger{% else %}emerald{% endif %}"
+                                      class="w-full text-left px-3.5 py-2 text-xs font-semibold {% if u.is_active %}text-amber-700 hover:bg-amber-50{% else %}text-emerald-700 hover:bg-emerald-50{% endif %} flex items-center gap-2">
+                                {% if u.is_active %}
+                                  <i data-lucide="user-x" class="w-3.5 h-3.5 text-amber-500"></i>
+                                  <span>Deactivate User</span>
+                                {% else %}
+                                  <i data-lucide="user-check" class="w-3.5 h-3.5 text-emerald-500"></i>
+                                  <span>Activate User</span>
+                                {% endif %}
+                              </button>
+                            </form>
+
+                            <div class="my-1 border-t border-slate-100"></div>
+
+                            <form method="POST" class="block w-full">
+                              {% csrf_token %}
+                              <input type="hidden" name="action" value="delete_user">
+                              <input type="hidden" name="user_id" value="{{ u.id }}">
+                              <button type="submit"
+                                      @click="close()"
+                                      data-confirm="Permanently delete user account '{{ u.username }}'? This action cannot be undone."
+                                      data-confirm-title="Delete User Account"
+                                      data-confirm-btn="Delete User"
+                                      data-cancel-btn="Keep Account"
+                                      data-confirm-variant="danger"
+                                      class="w-full text-left px-3.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5 text-red-500"></i>
+                                <span>Delete User</span>
+                              </button>
+                            </form>
+                          {% endif %}
+                        </div>
+                      </template>
+                    </div>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="5" class="text-center text-slate-400 py-10 text-xs">No users found.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
       </div>
-      <div class="card-body">
-        <form method="POST" class="space-y-4">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="create_user">
 
-          <div class="form-group mb-0">
-            <label class="form-label text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Username *</label>
-            <input type="text" name="username" class="form-control min-h-[44px]" required placeholder="e.g. jdelacruz">
+      <!-- Create User Form (4 cols) -->
+      <div class="lg:col-span-4 card">
+        <div class="card-header">
+          <div class="card-title">
+            <i data-lucide="user-plus" class="text-[#0B5CAD]"></i>
+            <span>Create User Account</span>
           </div>
+        </div>
+        <div class="card-body">
+          <form method="POST" class="space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create_user">
 
-          <div class="form-group mb-0">
-            <label class="form-label text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Initial Password *</label>
-            <input type="password" name="password" class="form-control min-h-[44px]" required placeholder="Minimum 8 characters">
-          </div>
+            <div class="form-group mb-0">
+              <label class="form-label text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Username *</label>
+              <input type="text" name="username" class="form-control min-h-[44px]" required placeholder="e.g. jdelacruz">
+            </div>
 
-          <div class="form-group mb-0">
-            <label class="form-label text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Role Assignment *</label>
-            <select name="RoleID" class="form-control min-h-[44px]" required>
-              <option value="">-- Choose Role --</option>
-              {% for r in roles %}
-                <option value="{{ r.RoleID }}">{{ r.RoleName }} ({{ r.RoleDescription }})</option>
+            <div class="form-group mb-0" x-data="{ showCreatePass: false }">
+              <label class="form-label text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Initial Password *</label>
+              <div class="relative">
+                <input :type="showCreatePass ? 'text' : 'password'" 
+                       name="password" 
+                       class="form-control min-h-[44px] pr-10" 
+                       required 
+                       placeholder="Minimum 8 characters">
+                <button type="button" 
+                        @click="showCreatePass = !showCreatePass"
+                        class="absolute right-3 top-3 text-slate-400 hover:text-slate-700 transition focus:outline-none p-0.5 rounded cursor-pointer"
+                        :title="showCreatePass ? 'Hide password' : 'Show password'"
+                        tabindex="-1">
+                  <svg x-show="!showCreatePass" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                  <svg x-show="showCreatePass" x-cloak class="w-4 h-4 text-[#0B5CAD]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="form-group mb-0">
+              <label class="form-label text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Role Assignment *</label>
+              <select name="RoleID" class="form-control min-h-[44px]" required>
+                <option value="">-- Choose Role --</option>
+                {% for r in roles %}
+                  <option value="{{ r.RoleID }}">{{ r.RoleName }} ({{ r.RoleDescription }})</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="form-group mb-0">
+              <label class="form-label text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Link Resident (For Citizen Portal)</label>
+              <select name="ResidentID" class="form-control min-h-[44px]">
+                <option value="">None (Administrative / Staff Account)</option>
+                {% for res in residents %}
+                  <option value="{{ res.ResidentID }}">{{ res.full_name }} (HH #{{ res.HouseholdID.HouseholdNumber }})</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-full min-h-[44px] font-bold mt-2">
+              <i data-lucide="shield-check" style="width: 16px; height: 16px;"></i>
+              <span>Create Account</span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- SUB-TAB B: Granular Permissions Matrix -->
+    <div x-show="userSubTab === 'permissions'" class="space-y-4">
+      <div class="p-4 bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-200 rounded-xl flex items-start gap-3 shadow-xs">
+        <div class="w-9 h-9 rounded-lg bg-[#0B5CAD] text-white flex items-center justify-center shrink-0 mt-0.5">
+          <i data-lucide="shield-alert" class="w-5 h-5"></i>
+        </div>
+        <div class="space-y-1">
+          <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wider">Granular Permission Matrix by Account</h4>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            Configure specific administrative capabilities for each account in the system. As specified, <strong>all registered users and residents maintain equal visibility to view records across the system (<span class="text-emerald-700 font-semibold">Read-Only View Enabled</span>)</strong>. The toggle checkboxes below control mutations: approving, rejecting, adding records, editing data, deleting items, dispensing medicine, and issuing official clearance letters.
+          </p>
+        </div>
+      </div>
+
+      <!-- Search and Filter Bar -->
+      <div class="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200">
+        <div class="relative w-full sm:w-72">
+          <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-3"></i>
+          <input type="text"
+                 x-model="permSearch"
+                 placeholder="Search user or role..."
+                 class="form-control pl-9 py-2 text-xs w-full min-h-[38px] border-slate-300">
+        </div>
+        <div class="flex items-center gap-1.5 text-xs text-slate-500">
+          <span class="font-semibold text-slate-700">Quick Legend:</span>
+          <span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">
+            <i data-lucide="eye" class="w-3 h-3"></i> View (Universal)
+          </span>
+          <span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-sky-50 text-[#0B5CAD] border border-sky-200 font-semibold">
+            <i data-lucide="check-square" class="w-3 h-3"></i> Enabled Action
+          </span>
+        </div>
+      </div>
+
+      <!-- Permission Matrix Table -->
+      <div class="card overflow-hidden">
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr class="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-600">
+                <th class="w-56">User Account</th>
+                <th class="text-center w-24">System View</th>
+                <th class="text-center w-24">Can Approve</th>
+                <th class="text-center w-24">Can Reject</th>
+                <th class="text-center w-24">Can Add</th>
+                <th class="text-center w-24">Can Edit</th>
+                <th class="text-center w-24">Can Delete</th>
+                <th class="text-center w-28">Distribute Meds</th>
+                <th class="text-center w-28">Give Document</th>
+                <th class="text-right w-44">Save Privileges</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for u in users %}
+                <tr id="perm-row-{{ u.id }}"
+                    x-show="!permSearch || '{{ u.username|lower }}'.includes(permSearch.toLowerCase()) || '{{ u.RoleID.RoleName|lower }}'.includes(permSearch.toLowerCase())"
+                    class="hover:bg-sky-50/40 transition">
+                  <td>
+                    <div class="flex items-center gap-2.5">
+                      <div class="w-8 h-8 rounded-full bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center shrink-0">
+                        {{ u.username|make_list|first|upper }}
+                      </div>
+                      <div>
+                        <div class="flex items-center gap-1.5">
+                          <strong class="text-slate-900 text-xs">{{ u.username }}</strong>
+                          <span class="text-[10px] px-1.5 py-0.2 rounded font-bold
+                            {% if u.RoleID.RoleName == 'Admin' %}bg-red-100 text-red-700
+                            {% elif u.RoleID.RoleName == 'Staff' %}bg-sky-100 text-sky-800
+                            {% else %}bg-slate-100 text-slate-700{% endif %}">
+                            {{ u.RoleID.RoleName|default:"Citizen" }}
+                          </span>
+                        </div>
+                        <span class="text-[11px] text-slate-400 block truncate max-w-[180px]">
+                          {% if u.ResidentID %}{{ u.ResidentID.full_name }}{% else %}{{ u.email|default:"Administrative User" }}{% endif %}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+
+                  <td class="text-center">
+                    <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200"
+                          title="All accounts retain equal permission to see and view records across modules.">
+                      <i data-lucide="eye" class="w-3.5 h-3.5 text-emerald-600"></i> Read
+                    </span>
+                  </td>
+
+                  <td colspan="8" class="p-0">
+                    <form id="perm-form-{{ u.id }}" method="POST" class="w-full">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="update_user_permissions">
+                      <input type="hidden" name="user_id" value="{{ u.id }}">
+
+                      <table class="w-full table-fixed border-collapse">
+                        <tbody>
+                          <tr>
+                            <td class="text-center w-24 py-3">
+                              <label class="inline-flex items-center justify-center cursor-pointer p-1 rounded hover:bg-slate-100">
+                                <input type="checkbox" name="can_approve" value="1"
+                                       {% if u.perm_obj.can_approve %}checked{% endif %}
+                                       class="w-4 h-4 rounded border-slate-300 text-[#0B5CAD] focus:ring-[#0B5CAD]">
+                              </label>
+                            </td>
+
+                            <td class="text-center w-24 py-3">
+                              <label class="inline-flex items-center justify-center cursor-pointer p-1 rounded hover:bg-slate-100">
+                                <input type="checkbox" name="can_reject" value="1"
+                                       {% if u.perm_obj.can_reject %}checked{% endif %}
+                                       class="w-4 h-4 rounded border-slate-300 text-red-600 focus:ring-red-500">
+                              </label>
+                            </td>
+
+                            <td class="text-center w-24 py-3">
+                              <label class="inline-flex items-center justify-center cursor-pointer p-1 rounded hover:bg-slate-100">
+                                <input type="checkbox" name="can_add" value="1"
+                                       {% if u.perm_obj.can_add %}checked{% endif %}
+                                       class="w-4 h-4 rounded border-slate-300 text-[#0B5CAD] focus:ring-[#0B5CAD]">
+                              </label>
+                            </td>
+
+                            <td class="text-center w-24 py-3">
+                              <label class="inline-flex items-center justify-center cursor-pointer p-1 rounded hover:bg-slate-100">
+                                <input type="checkbox" name="can_edit" value="1"
+                                       {% if u.perm_obj.can_edit %}checked{% endif %}
+                                       class="w-4 h-4 rounded border-slate-300 text-[#0B5CAD] focus:ring-[#0B5CAD]">
+                              </label>
+                            </td>
+
+                            <td class="text-center w-24 py-3">
+                              <label class="inline-flex items-center justify-center cursor-pointer p-1 rounded hover:bg-slate-100">
+                                <input type="checkbox" name="can_delete" value="1"
+                                       {% if u.perm_obj.can_delete %}checked{% endif %}
+                                       class="w-4 h-4 rounded border-slate-300 text-red-600 focus:ring-red-500">
+                              </label>
+                            </td>
+
+                            <td class="text-center w-28 py-3">
+                              <label class="inline-flex items-center justify-center cursor-pointer p-1 rounded hover:bg-slate-100">
+                                <input type="checkbox" name="can_distribute_medicine" value="1"
+                                       {% if u.perm_obj.can_distribute_medicine %}checked{% endif %}
+                                       class="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+                              </label>
+                            </td>
+
+                            <td class="text-center w-28 py-3">
+                              <label class="inline-flex items-center justify-center cursor-pointer p-1 rounded hover:bg-slate-100">
+                                <input type="checkbox" name="can_give_document" value="1"
+                                       {% if u.perm_obj.can_give_document %}checked{% endif %}
+                                       class="w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
+                              </label>
+                            </td>
+
+                            <td class="text-right w-44 py-3 pr-3">
+                              <div class="flex items-center justify-end gap-1.5">
+                                <div class="dropdown inline-block" x-data="{ openPresets: false }">
+                                  <button type="button"
+                                          @click="openPresets = !openPresets"
+                                          class="px-2 py-1 text-[11px] font-semibold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded border border-slate-200 transition">
+                                    Preset
+                                  </button>
+                                  <div x-show="openPresets"
+                                       x-cloak
+                                       @click.away="openPresets = false"
+                                       class="absolute right-12 z-20 mt-1 w-40 bg-white rounded-lg shadow-lg border border-slate-200 py-1 text-left text-xs">
+                                    <button type="button" @click="applyPreset('perm-form-{{ u.id }}', 'admin'); openPresets = false" class="w-full px-3 py-1.5 text-left text-slate-700 hover:bg-slate-50 font-medium">Full Admin</button>
+                                    <button type="button" @click="applyPreset('perm-form-{{ u.id }}', 'staff'); openPresets = false" class="w-full px-3 py-1.5 text-left text-slate-700 hover:bg-slate-50 font-medium">Barangay Staff</button>
+                                    <button type="button" @click="applyPreset('perm-form-{{ u.id }}', 'health'); openPresets = false" class="w-full px-3 py-1.5 text-left text-slate-700 hover:bg-slate-50 font-medium">Health Worker</button>
+                                    <button type="button" @click="applyPreset('perm-form-{{ u.id }}', 'doc'); openPresets = false" class="w-full px-3 py-1.5 text-left text-slate-700 hover:bg-slate-50 font-medium">Clearance Officer</button>
+                                    <div class="border-t border-slate-100 my-1"></div>
+                                    <button type="button" @click="applyPreset('perm-form-{{ u.id }}', 'viewer'); openPresets = false" class="w-full px-3 py-1.5 text-left text-slate-500 hover:bg-slate-50 font-medium">View-Only / Citizen</button>
+                                  </div>
+                                </div>
+
+                                <button type="submit"
+                                        class="btn btn-primary btn-sm px-3 py-1 text-xs font-bold shadow-xs flex items-center gap-1">
+                                  <i data-lucide="save" class="w-3.5 h-3.5"></i>
+                                  <span>Save</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </form>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="10" class="text-center text-slate-400 py-10 text-xs">No accounts available for permission configuration.</td></tr>
               {% endfor %}
-            </select>
-          </div>
-
-          <div class="form-group mb-0">
-            <label class="form-label text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Link Resident (For Citizen Portal)</label>
-            <select name="ResidentID" class="form-control min-h-[44px]">
-              <option value="">None (Administrative / Staff Account)</option>
-              {% for res in residents %}
-                <option value="{{ res.ResidentID }}">{{ res.full_name }} (HH #{{ res.HouseholdID.HouseholdNumber }})</option>
-              {% endfor %}
-            </select>
-          </div>
-
-          <!-- PRIMARY ACTION FIRST -->
-          <button type="submit" class="btn btn-primary w-full min-h-[44px] font-bold mt-2">
-            <i data-lucide="shield-check" style="width: 16px; height: 16px;"></i>
-            <span>Create Account</span>
-          </button>
-        </form>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- ============================================================== -->
-  <!-- TAB 3: AUDIT TRAIL LOGS                                        -->
+  <!-- TAB 3: DOCUMENT LETTER & SEALS CONFIGURATION                   -->
+  <!-- ============================================================== -->
+  <div x-show="activeTab === 'letter'" x-cloak class="space-y-6">
+
+    <!-- DOCUMENT TYPE ALTERNATIVE SELECTOR BAR -->
+    <div class="bg-gradient-to-r from-sky-900 to-slate-900 rounded-2xl p-4 text-white shadow-md flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-sky-500/20 text-sky-300 border border-sky-400/30 flex items-center justify-center shrink-0">
+          <i data-lucide="layers" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h3 class="text-sm font-bold tracking-wide">Select Document Type to Customize</h3>
+          <p class="text-xs text-slate-300">Choose which certificate legal narrative and requirements to configure</p>
+        </div>
+      </div>
+
+      <!-- Document Type Select Dropdown -->
+      <div class="w-full md:w-80">
+        <div class="relative">
+          <select x-model="selectedDocType"
+                  @change="onDocTypeChange()"
+                  class="w-full bg-slate-800 text-white border border-sky-400/40 rounded-xl px-3.5 py-2.5 text-xs font-bold focus:outline-hidden focus:ring-2 focus:ring-sky-400 cursor-pointer shadow-inner">
+            {% for dt in document_types %}
+              <option value="{{ dt.DocumentTypeID }}" class="bg-slate-900 text-white py-1">
+                {{ dt.DocumentTypeName }} (PHP {{ dt.StandardFee|floatformat:2 }})
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- LEFT: Editor Form (7 cols) -->
+      <div class="lg:col-span-7 card">
+        <div class="card-header flex items-center justify-between">
+          <div class="card-title">
+            <i data-lucide="file-text" class="text-[#0B5CAD]"></i>
+            <span>Official Letter Body & Seals Customization</span>
+          </div>
+          <span class="text-xs px-2.5 py-1 rounded-full font-bold bg-sky-50 text-sky-800 border border-sky-200"
+                x-text="previewTitle">
+            Barangay Clearance
+          </span>
+        </div>
+        <div class="card-body">
+          <form method="POST" enctype="multipart/form-data" class="space-y-6">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update_document_letter">
+            <input type="hidden" name="document_type_id" :value="selectedDocType">
+
+            <!-- 1. OFFICIAL SEALS UPLOAD SECTION -->
+            <div>
+              <div style="font-size: 0.82rem; font-weight: 700; color: var(--primary); text-transform: uppercase; margin-bottom: 14px; border-bottom: 1px solid var(--surface-border); padding-bottom: 6px;" class="flex items-center gap-1.5">
+                <i data-lucide="stamp" class="w-4 h-4"></i>
+                <span>1. Official Barangay & Municipal Seals</span>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <!-- Barangay Seal Upload -->
+                <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-slate-800">Barangay Official Seal</span>
+                    <span class="text-[10px] text-slate-400 font-mono">Right Header</span>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <div class="w-16 h-16 rounded-lg bg-white border border-slate-200 p-1 flex items-center justify-center shrink-0 overflow-hidden shadow-xs">
+                      {% if settings.BarangayLogo %}
+                        <img src="{{ settings.BarangayLogo.url }}" alt="Barangay Seal" class="w-full h-full object-contain">
+                      {% else %}
+                        <div class="text-center text-slate-400">
+                          <i data-lucide="shield" class="w-7 h-7 mx-auto text-[#0b5cad]"></i>
+                          <span class="text-[9px] block font-bold">Standard</span>
+                        </div>
+                      {% endif %}
+                    </div>
+                    <div class="space-y-1 flex-1">
+                      <input type="file" name="BarangayLogo" accept="image/png,image/jpeg,image/webp,image/svg+xml" class="text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-[11px] file:font-semibold file:bg-[#0B5CAD] file:text-white hover:file:bg-[#094a8f]">
+                      <span class="text-[10px] text-slate-400 block">PNG with transparent background recommended.</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- City / Municipal Seal Upload -->
+                <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-slate-800">City / Municipal Seal</span>
+                    <span class="text-[10px] text-slate-400 font-mono">Left Header</span>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <div class="w-16 h-16 rounded-lg bg-white border border-slate-200 p-1 flex items-center justify-center shrink-0 overflow-hidden shadow-xs">
+                      {% if settings.CityLogo %}
+                        <img src="{{ settings.CityLogo.url }}" alt="City Seal" class="w-full h-full object-contain">
+                      {% else %}
+                        <div class="text-center text-slate-400">
+                          <i data-lucide="landmark" class="w-7 h-7 mx-auto text-amber-600"></i>
+                          <span class="text-[9px] block font-bold">Standard</span>
+                        </div>
+                      {% endif %}
+                    </div>
+                    <div class="space-y-1 flex-1">
+                      <input type="file" name="CityLogo" accept="image/png,image/jpeg,image/webp,image/svg+xml" class="text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-[11px] file:font-semibold file:bg-slate-800 file:text-white hover:file:bg-slate-700">
+                      <span class="text-[10px] text-slate-400 block">Appears on the left side of clearance header.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Watermark Toggle -->
+              <div class="mt-3 p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <i data-lucide="layers" class="w-4 h-4 text-[#0B5CAD]"></i>
+                  <div>
+                    <span class="text-xs font-bold text-slate-800 block">Certificate Security Watermark</span>
+                    <span class="text-[11px] text-slate-500">Render faint official seal watermark in the center background of printed clearances</span>
+                  </div>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" name="ShowSealWatermark" x-model="showWatermark" value="1" class="sr-only peer">
+                  <div class="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#0B5CAD]"></div>
+                </label>
+              </div>
+            </div>
+
+            <!-- 2. LETTER STRUCTURE & SALUTATION -->
+            <div>
+              <div style="font-size: 0.82rem; font-weight: 700; color: var(--primary); text-transform: uppercase; margin-bottom: 14px; border-bottom: 1px solid var(--surface-border); padding-bottom: 6px;" class="flex items-center gap-1.5">
+                <i data-lucide="align-left" class="w-4 h-4"></i>
+                <span>2. Official Letterhead & Salutation</span>
+              </div>
+
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label text-xs font-bold text-slate-700">Office Header Title</label>
+                  <input type="text"
+                         name="LetterOfficeHeader"
+                         x-model="letterOfficeHeader"
+                         class="form-control min-h-[44px]"
+                         placeholder="e.g. OFFICE OF THE PUNONG BARANGAY"
+                         required>
+                  <span class="text-[11px] text-slate-400">Emphasized colored line below Barangay Name.</span>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label text-xs font-bold text-slate-700">Formal Salutation</label>
+                  <input type="text"
+                         name="LetterSalutation"
+                         x-model="letterSalutation"
+                         class="form-control min-h-[44px]"
+                         placeholder="e.g. TO WHOM IT MAY CONCERN:"
+                         required>
+                  <span class="text-[11px] text-slate-400">Greeting introducing the certificate narrative.</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. LETTER BODY TEMPLATE WITH PLACEHOLDERS -->
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <label class="form-label text-xs font-bold text-slate-700 uppercase tracking-wider mb-0 flex items-center gap-1.5">
+                  <span>3. Legal Narrative for:</span>
+                  <span class="text-[#0B5CAD] font-bold" x-text="previewTitle"></span>
+                </label>
+                <span class="text-[11px] text-slate-400">Separate paragraphs with a blank line</span>
+              </div>
+
+              <!-- Quick Placeholder Chips -->
+              <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-lg mb-2">
+                <div class="text-[11px] font-bold text-slate-700 mb-1.5 flex items-center gap-1">
+                  <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-500"></i>
+                  <span>Click to insert dynamic variables into the letter:</span>
+                </div>
+                <div class="flex flex-wrap gap-1.5">
+                  <button type="button" @click="insertTag('{RESIDENT_FULL_NAME}')" class="px-2 py-0.5 rounded bg-white hover:bg-sky-50 border border-slate-200 text-sky-700 text-[11px] font-mono transition font-semibold">{RESIDENT_FULL_NAME}</button>
+                  <button type="button" @click="insertTag('{AGE}')" class="px-2 py-0.5 rounded bg-white hover:bg-sky-50 border border-slate-200 text-sky-700 text-[11px] font-mono transition font-semibold">{AGE}</button>
+                  <button type="button" @click="insertTag('{SEX}')" class="px-2 py-0.5 rounded bg-white hover:bg-sky-50 border border-slate-200 text-sky-700 text-[11px] font-mono transition font-semibold">{SEX}</button>
+                  <button type="button" @click="insertTag('{CIVIL_STATUS}')" class="px-2 py-0.5 rounded bg-white hover:bg-sky-50 border border-slate-200 text-sky-700 text-[11px] font-mono transition font-semibold">{CIVIL_STATUS}</button>
+                  <button type="button" @click="insertTag('{ADDRESS}')" class="px-2 py-0.5 rounded bg-white hover:bg-sky-50 border border-slate-200 text-sky-700 text-[11px] font-mono transition font-semibold">{ADDRESS}</button>
+                  <button type="button" @click="insertTag('{BARANGAY}')" class="px-2 py-0.5 rounded bg-white hover:bg-sky-50 border border-slate-200 text-sky-700 text-[11px] font-mono transition font-semibold">{BARANGAY}</button>
+                  <button type="button" @click="insertTag('{CITY}')" class="px-2 py-0.5 rounded bg-white hover:bg-sky-50 border border-slate-200 text-sky-700 text-[11px] font-mono transition font-semibold">{CITY}</button>
+                  <button type="button" @click="insertTag('{PROVINCE}')" class="px-2 py-0.5 rounded bg-white hover:bg-sky-50 border border-slate-200 text-sky-700 text-[11px] font-mono transition font-semibold">{PROVINCE}</button>
+                  <button type="button" @click="insertTag('{PURPOSE}')" class="px-2 py-0.5 rounded bg-white hover:bg-sky-50 border border-slate-200 text-sky-700 text-[11px] font-mono transition font-semibold">{PURPOSE}</button>
+                  <button type="button" @click="insertTag('{DATE}')" class="px-2 py-0.5 rounded bg-white hover:bg-sky-50 border border-slate-200 text-sky-700 text-[11px] font-mono transition font-semibold">{DATE}</button>
+                </div>
+              </div>
+
+              <textarea id="letterBodyTextarea"
+                        name="LetterBodyTemplate"
+                        x-model="letterBody"
+                        rows="8"
+                        class="form-control w-full font-serif text-xs leading-relaxed p-3.5 border-slate-300"
+                        placeholder="Write or customize the legal narrative for this document..."></textarea>
+            </div>
+
+            <!-- 4. CLOSING & SIGNATORY DETAILS -->
+            <div class="form-grid">
+              <div class="form-group" style="grid-column: span 2;">
+                <label class="form-label text-xs font-bold text-slate-700">Closing Statement</label>
+                <input type="text"
+                       name="LetterClosing"
+                       x-model="letterClosing"
+                       class="form-control min-h-[44px]"
+                       placeholder="Issued this {DATE} at {BARANGAY_HALL_ADDRESS}...">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label text-xs font-bold text-slate-700">Primary Signatory Title</label>
+                <input type="text"
+                       name="LetterSignatoryTitle"
+                       x-model="letterSignatoryTitle"
+                       class="form-control min-h-[44px]"
+                       placeholder="e.g. Punong Barangay">
+              </div>
+            </div>
+
+            <!-- PRIMARY ACTION FIRST -->
+            <div class="pt-4 border-t border-slate-200 flex items-center justify-between">
+              <button type="submit" class="btn btn-primary min-h-[44px] px-6 font-bold shadow-sm">
+                <i data-lucide="save" class="w-4 h-4"></i>
+                <span>Save Document Letter & Seals</span>
+              </button>
+
+              <button type="button"
+                      @click="onDocTypeChange()"
+                      class="text-xs text-slate-500 hover:text-red-600 underline">
+                Reset to Document Standard Template
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- RIGHT: Interactive Live Certificate Preview (5 cols) -->
+      <div class="lg:col-span-5 space-y-4">
+        <div class="card overflow-hidden sticky top-6 shadow-md border-slate-300">
+          <div class="card-header bg-slate-900 text-white flex items-center justify-between py-2.5 px-4">
+            <div class="flex items-center gap-2">
+              <i data-lucide="eye" class="w-4 h-4 text-sky-400"></i>
+              <span class="text-xs font-bold uppercase tracking-wider">Live Certificate Preview</span>
+            </div>
+            <span class="text-[10px] bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded border border-sky-400/30 font-mono">
+              Auto-Sync
+            </span>
+          </div>
+
+          <!-- Certificate Sheet Mockup -->
+          <div class="p-6 bg-slate-100 flex items-center justify-center">
+            <div class="w-full bg-white shadow-lg p-7 relative border-2 border-slate-800 text-slate-900"
+                 style="font-family: 'Times New Roman', serif; min-height: 580px;">
+
+              <!-- Optional Watermark -->
+              <div x-show="showWatermark"
+                   class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-5">
+                {% if settings.BarangayLogo %}
+                  <img src="{{ settings.BarangayLogo.url }}" alt="Watermark" class="w-64 h-64 object-contain">
+                {% else %}
+                  <i data-lucide="shield" class="w-64 h-64 text-slate-900"></i>
+                {% endif %}
+              </div>
+
+              <!-- Header with Dual Seals -->
+              <div class="flex items-center justify-between gap-2 border-b-2 border-slate-900 pb-3 mb-4">
+                <!-- City Seal (Left) -->
+                <div class="w-12 h-12 shrink-0 flex items-center justify-center">
+                  {% if settings.CityLogo %}
+                    <img src="{{ settings.CityLogo.url }}" alt="City Seal" class="w-12 h-12 object-contain">
+                  {% else %}
+                    <div class="w-11 h-11 rounded-full border border-amber-600 bg-amber-50 flex items-center justify-center text-[8px] font-bold text-amber-800 text-center uppercase p-0.5">
+                      City Seal
+                    </div>
+                  {% endif %}
+                </div>
+
+                <!-- Text Header -->
+                <div class="text-center flex-1">
+                  <div style="font-size: 8pt; text-transform: uppercase;">Republic of the Philippines</div>
+                  <div style="font-size: 8pt; text-transform: uppercase;">Province of {{ settings.Province }}</div>
+                  <div style="font-size: 8pt; text-transform: uppercase;">{{ settings.CityOrMunicipality }}</div>
+                  <div style="font-size: 10pt; font-weight: bold; text-transform: uppercase; margin-top: 2px;">
+                    {{ settings.BarangayName }}
+                  </div>
+                  <div style="font-size: 7.5pt; font-weight: bold; letter-spacing: 0.08em; color: #0284c7; margin-top: 2px;"
+                       x-text="letterOfficeHeader">
+                  </div>
+                </div>
+
+                <!-- Barangay Seal (Right) -->
+                <div class="w-12 h-12 shrink-0 flex items-center justify-center">
+                  {% if settings.BarangayLogo %}
+                    <img src="{{ settings.BarangayLogo.url }}" alt="Barangay Seal" class="w-12 h-12 object-contain">
+                  {% else %}
+                    <div class="w-11 h-11 rounded-full border border-sky-600 bg-sky-50 flex items-center justify-center text-[8px] font-bold text-sky-800 text-center uppercase p-0.5">
+                      Brgy Seal
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+
+              <!-- Document Title -->
+              <div class="text-center font-bold text-[12pt] uppercase tracking-wider mb-3 text-slate-900"
+                   x-text="previewTitle">
+                BARANGAY CLEARANCE
+              </div>
+
+              <!-- Salutation -->
+              <div class="font-bold text-[9pt] uppercase mb-2 text-slate-900" x-text="letterSalutation">
+              </div>
+
+              <!-- Narrative Sample Preview -->
+              <div class="text-[8pt] text-justify leading-relaxed space-y-2 text-slate-800">
+                <template x-if="letterBody && letterBody.trim().length > 0">
+                  <p style="text-indent: 20px;" x-text="letterBody.replace(/{RESIDENT_FULL_NAME}/g, 'JUAN SANTOS DELA CRUZ').replace(/{AGE}/g, '41').replace(/{SEX}/g, 'Male').replace(/{CIVIL_STATUS}/g, 'Married').replace(/{ADDRESS}/g, 'Block 2 Lot 14, Mabini St.').replace(/{BARANGAY}/g, '{{ settings.BarangayName|escapejs }}').replace(/{CITY}/g, '{{ settings.CityOrMunicipality|escapejs }}').replace(/{PROVINCE}/g, '{{ settings.Province|escapejs }}').replace(/{PURPOSE}/g, 'PASSPORT APPLICATION').replace(/{DATE}/g, 'Today')"></p>
+                </template>
+                <template x-if="!letterBody || letterBody.trim().length === 0">
+                  <div class="space-y-2">
+                    <p style="text-indent: 20px;">
+                      This is to certify that <strong>JUAN SANTOS DELA CRUZ</strong>, 41 years old, Filipino citizen, is a bonafide resident of {{ settings.BarangayName }}, {{ settings.CityOrMunicipality }}.
+                    </p>
+                    <p style="text-indent: 20px;">
+                      Records of this office further show that the subject person has NO DEROGATORY RECORD nor any pending complaint or criminal case filed against him/her to date.
+                    </p>
+                  </div>
+                </template>
+
+                <!-- Purpose Box -->
+                <div class="my-2 p-1.5 border border-dashed border-slate-300 text-center font-bold text-[8.5pt]">
+                  PURPOSE: LOCAL EMPLOYMENT / LEGAL PURPOSES
+                </div>
+
+                <!-- Closing -->
+                <p style="text-indent: 20px;" x-text="letterClosing.replace(/{DATE}/g, 'Today').replace(/{BARANGAY_HALL_ADDRESS}/g, '{{ settings.BarangayHallAddress|escapejs }}')">
+                </p>
+              </div>
+
+              <!-- Signatories Block -->
+              <div class="mt-6 pt-3 border-t border-slate-200 flex items-end justify-between text-[7.5pt]">
+                <!-- Secretary -->
+                <div class="text-center">
+                  <div style="font-family: 'Brush Script MT', cursive; font-size: 13pt; color: #0f172a; margin-bottom: -6px;">
+                    {{ settings.BarangaySecretary|default:"Barangay Secretary" }}
+                  </div>
+                  <div class="font-bold border-t border-slate-800 pt-0.5 uppercase">
+                    {{ settings.BarangaySecretary|default:"Elena V. Reyes" }}
+                  </div>
+                  <div class="text-slate-500 uppercase text-[6.5pt]">Barangay Secretary</div>
+                </div>
+
+                <!-- Captain -->
+                <div class="text-center">
+                  <div style="font-family: 'Brush Script MT', cursive; font-size: 15pt; color: #0f172a; margin-bottom: -8px;">
+                    {{ settings.PunongBarangay }}
+                  </div>
+                  <div class="font-bold border-t border-slate-800 pt-0.5 uppercase text-sky-900">
+                    {{ settings.PunongBarangay }}
+                  </div>
+                  <div class="text-sky-800 uppercase font-bold text-[6.5pt]" x-text="letterSignatoryTitle"></div>
+                </div>
+              </div>
+
+              <!-- Footer Verification Bar -->
+              <div class="mt-4 pt-2 border-t border-dashed border-slate-300 flex items-center justify-between text-[6.5pt] text-slate-500 font-sans">
+                <span>Verification: BIMS-SECURE-QR</span>
+                <span>Official Dry Seal Imprint Area</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- TAB 4: AUDIT TRAIL LOGS                                        -->
   <!-- ============================================================== -->
   <div x-show="activeTab === 'audit'" x-cloak class="card">
     <div class="card-header flex items-center justify-between">
@@ -443,6 +1182,313 @@
     </div>
   </div>
 
+  <!-- ============================================================== -->
+  <!-- TAB 5: MY PROFILE (Change Username, Name & Password)           -->
+  <!-- ============================================================== -->
+  <div x-show="activeTab === 'my_profile'" x-cloak class="space-y-6">
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Left Column (2 Cols): Profile Details & Change Password Forms -->
+      <div class="lg:col-span-2 space-y-6">
+
+        <!-- Form 1: Profile Details (Username & Name) -->
+        <div class="card shadow-sm border border-slate-200">
+          <div class="card-header flex items-center justify-between bg-slate-50/75 border-b border-slate-100">
+            <div class="card-title flex items-center gap-2">
+              <div class="w-7 h-7 rounded-lg bg-sky-100 text-[#0B5CAD] flex items-center justify-center">
+                <i data-lucide="user" class="w-4 h-4"></i>
+              </div>
+              <span class="font-bold text-slate-900 text-sm">Account Identity & Official Name</span>
+            </div>
+            <span class="badge badge-primary text-[10px]">User Account</span>
+          </div>
+
+          <div class="card-body p-5">
+            <form method="POST" class="space-y-4">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="update_profile">
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="form-group sm:col-span-2">
+                  <label class="form-label text-xs font-semibold text-slate-700">Username *</label>
+                  <div class="relative">
+                    <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 font-mono text-xs">@</span>
+                    <input type="text"
+                           name="username"
+                           value="{{ request.user.username }}"
+                           required
+                           class="form-control pl-8 font-mono font-semibold min-h-[44px] text-sm"
+                           placeholder="username">
+                  </div>
+                  <span class="text-[11px] text-slate-500 mt-1 block">
+                    Your unique identifier for signing into the Barangay Information Management System.
+                  </span>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label text-xs font-semibold text-slate-700">First Name *</label>
+                  <input type="text"
+                         name="first_name"
+                         value="{{ request.user.first_name }}"
+                         required
+                         class="form-control font-semibold min-h-[44px] text-sm"
+                         placeholder="e.g. Juan">
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label text-xs font-semibold text-slate-700">Last Name *</label>
+                  <input type="text"
+                         name="last_name"
+                         value="{{ request.user.last_name }}"
+                         required
+                         class="form-control font-semibold min-h-[44px] text-sm"
+                         placeholder="e.g. Dela Cruz">
+                </div>
+
+                <div class="form-group sm:col-span-2">
+                  <label class="form-label text-xs font-semibold text-slate-700">Email Address</label>
+                  <input type="email"
+                         name="email"
+                         value="{{ request.user.email }}"
+                         class="form-control min-h-[44px] text-sm"
+                         placeholder="e.g. admin@barangay.ph">
+                  <span class="text-[11px] text-slate-500 mt-1 block">
+                    Administrative alerts and system notifications will be routed to this email address.
+                  </span>
+                </div>
+              </div>
+
+              <div class="pt-4 border-t border-slate-100 flex items-center justify-between">
+                <span class="text-xs text-slate-500">All changes will immediately reflect in audit logs.</span>
+                <button type="submit" 
+                        data-confirm="Are you sure you want to update your administrative username and name details?"
+                        data-confirm-title="Confirm Profile Update"
+                        data-confirm-btn="Save Profile"
+                        class="btn btn-primary min-h-[42px] px-5 font-bold inline-flex items-center gap-2">
+                  <i data-lucide="save" class="w-4 h-4"></i>
+                  <span>Save Profile Changes</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Form 2: Change Password Security Card with Real-time Validation -->
+        <div class="card shadow-sm border border-slate-200" 
+             x-data="{ 
+               showCurrentPass: false,
+               showNewPass: false,
+               showConfirmPass: false,
+               currentPass: '',
+               newPass: '',
+               confirmPass: '',
+               get passLengthOk() { return this.newPass.length >= 6; },
+               get passMatch() { 
+                 if (!this.confirmPass) return null;
+                 return this.newPass === this.confirmPass; 
+               },
+               get canSubmit() {
+                 return this.currentPass.length > 0 && this.passLengthOk && this.passMatch === true;
+               }
+             }">
+          <div class="card-header flex items-center justify-between bg-slate-50/75 border-b border-slate-100">
+            <div class="card-title flex items-center gap-2">
+              <div class="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center">
+                <i data-lucide="key-round" class="w-4 h-4"></i>
+              </div>
+              <span class="font-bold text-slate-900 text-sm">Security & Password Management</span>
+            </div>
+            <span class="text-xs text-slate-500 font-medium">Click eye icon in fields to view</span>
+          </div>
+
+          <div class="card-body p-5">
+            <form method="POST" class="space-y-4">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="change_profile_password">
+
+              <div class="form-group">
+                <label class="form-label text-xs font-semibold text-slate-700">Current Password *</label>
+                <div class="relative">
+                  <input :type="showCurrentPass ? 'text' : 'password'"
+                         name="current_password"
+                         x-model="currentPass"
+                         required
+                         class="form-control min-h-[44px] text-sm pr-10"
+                         placeholder="Enter your existing password">
+                  <button type="button" 
+                          @click="showCurrentPass = !showCurrentPass"
+                          class="absolute right-3 top-3 text-slate-400 hover:text-slate-700 transition focus:outline-none p-0.5 rounded cursor-pointer"
+                          :title="showCurrentPass ? 'Hide password' : 'Show password'"
+                          tabindex="-1">
+                    <svg x-show="!showCurrentPass" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                    <svg x-show="showCurrentPass" x-cloak class="w-4 h-4 text-[#0B5CAD]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
+                  </button>
+                </div>
+                <span class="text-[11px] text-slate-500 mt-1 block">
+                  Required to authenticate this password modification.
+                </span>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="form-group">
+                  <div class="flex items-center justify-between mb-1">
+                    <label class="form-label text-xs font-semibold text-slate-700 mb-0">New Password *</label>
+                    <template x-if="newPass.length > 0">
+                      <span class="text-[10px] font-bold"
+                            :class="passLengthOk ? 'text-emerald-600' : 'text-amber-600'">
+                        <span x-text="passLengthOk ? '✓ Valid length' : '✕ Min. 6 chars'"></span>
+                      </span>
+                    </template>
+                  </div>
+                  <div class="relative">
+                    <input :type="showNewPass ? 'text' : 'password'"
+                           name="new_password"
+                           x-model="newPass"
+                           required
+                           minlength="6"
+                           class="form-control min-h-[44px] text-sm pr-10"
+                           :class="{ 'border-emerald-500 ring-1 ring-emerald-500': passLengthOk && newPass.length > 0 }"
+                           placeholder="Minimum 6 characters">
+                    <button type="button" 
+                            @click="showNewPass = !showNewPass"
+                            class="absolute right-3 top-3 text-slate-400 hover:text-slate-700 transition focus:outline-none p-0.5 rounded cursor-pointer"
+                            :title="showNewPass ? 'Hide password' : 'Show password'"
+                            tabindex="-1">
+                      <svg x-show="!showNewPass" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                      <svg x-show="showNewPass" x-cloak class="w-4 h-4 text-[#0B5CAD]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <div class="flex items-center justify-between mb-1">
+                    <label class="form-label text-xs font-semibold text-slate-700 mb-0">Confirm New Password *</label>
+                    <template x-if="confirmPass.length > 0">
+                      <span class="text-[10px] font-bold"
+                            :class="passMatch ? 'text-emerald-600' : 'text-red-600'">
+                        <span x-text="passMatch ? '✓ Passwords match' : '✕ Does not match'"></span>
+                      </span>
+                    </template>
+                  </div>
+                  <div class="relative">
+                    <input :type="showConfirmPass ? 'text' : 'password'"
+                           name="confirm_password"
+                           x-model="confirmPass"
+                           required
+                           minlength="6"
+                           class="form-control min-h-[44px] text-sm pr-10"
+                           :class="{ 
+                             'border-emerald-500 ring-1 ring-emerald-500': passMatch === true,
+                             'border-red-500 ring-1 ring-red-500': passMatch === false 
+                           }"
+                           placeholder="Re-enter new password">
+                    <button type="button" 
+                            @click="showConfirmPass = !showConfirmPass"
+                            class="absolute right-3 top-3 text-slate-400 hover:text-slate-700 transition focus:outline-none p-0.5 rounded cursor-pointer"
+                            :title="showConfirmPass ? 'Hide password' : 'Show password'"
+                            tabindex="-1">
+                      <svg x-show="!showConfirmPass" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                      <svg x-show="showConfirmPass" x-cloak class="w-4 h-4 text-[#0B5CAD]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Password Guidelines Checklist -->
+              <div class="bg-slate-50 border border-slate-200/80 rounded-xl p-3 text-xs space-y-1.5 text-slate-600">
+                <div class="font-bold text-slate-700 text-[11px] uppercase tracking-wider">Password Requirements:</div>
+                <div class="flex items-center gap-2 text-[11px]" :class="passLengthOk ? 'text-emerald-600 font-semibold' : 'text-slate-500'">
+                  <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                  <span>At least 6 characters long</span>
+                </div>
+                <div class="flex items-center gap-2 text-[11px]" :class="passMatch === true ? 'text-emerald-600 font-semibold' : 'text-slate-500'">
+                  <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                  <span>Password and confirmation must match identically</span>
+                </div>
+              </div>
+
+              <div class="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <span class="text-xs text-slate-500">Your session will stay active via secure token re-hash.</span>
+                <button type="submit" 
+                        :disabled="!canSubmit"
+                        data-confirm="Are you sure you want to change your account password? Your session will remain safely active."
+                        data-confirm-title="Confirm Password Change"
+                        data-confirm-btn="Update Password"
+                        class="btn btn-primary min-h-[42px] px-5 font-bold inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <i data-lucide="lock" class="w-4 h-4"></i>
+                  <span>Update Password</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column (1 Col): Account Overview & Security Status -->
+      <div class="space-y-6">
+
+        <!-- User Identity Overview Card -->
+        <div class="card text-center p-6 space-y-4 shadow-sm border border-slate-200">
+          <div class="w-20 h-20 rounded-2xl bg-gradient-to-tr from-[#084887] to-[#0b5cad] text-white flex items-center justify-center font-extrabold text-3xl shadow-lg shadow-sky-950/20 mx-auto ring-4 ring-sky-100">
+            {{ request.user.first_name|default:request.user.username|make_list|first|upper }}
+          </div>
+
+          <div>
+            <h3 class="font-extrabold text-slate-900 text-lg leading-tight">
+              {{ request.user.get_full_name|default:request.user.username }}
+            </h3>
+            <p class="font-mono text-xs text-[#0b5cad] font-semibold mt-0.5">
+              @{{ request.user.username }}
+            </p>
+            <div class="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-sky-100 text-[#084887] border border-sky-200">
+              <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+              <span>{{ request.user.RoleID.RoleName|default:"Administrator" }}</span>
+            </div>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 text-xs text-slate-600 space-y-2.5 text-left">
+            <div class="flex justify-between items-center">
+              <span class="text-slate-400 font-medium">Account Status:</span>
+              <span class="inline-flex items-center gap-1 font-bold text-emerald-600">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Active & Authenticated
+              </span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-slate-400 font-medium">Date Registered:</span>
+              <span class="font-semibold text-slate-800">{{ request.user.date_joined|date:"M d, Y" }}</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-slate-400 font-medium">Last Login:</span>
+              <span class="font-medium text-slate-700">{{ request.user.last_login|date:"M d, Y - h:i A"|default:"Active Now" }}</span>
+            </div>
+            {% if request.user.ResidentID %}
+            <div class="flex justify-between items-center">
+              <span class="text-slate-400 font-medium">Linked Resident:</span>
+              <span class="font-semibold text-slate-800">{{ request.user.ResidentID.full_name }}</span>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Data Privacy & Security Notice -->
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-600 space-y-2">
+          <div class="flex items-center gap-2 font-bold text-slate-800">
+            <i data-lucide="shield-alert" class="w-4 h-4 text-sky-600 shrink-0"></i>
+            <span>Security Guidelines</span>
+          </div>
+          <p class="leading-relaxed text-[11px] text-slate-500">
+            Pursuant to the <strong>Data Privacy Act of 2012 (RA 10173)</strong>, administrative credentials must not be shared. Always log out when stepping away from your workstation.
+          </p>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
   <!-- Shared Edit User Privileges Modal -->
   <div x-cloak x-show="editModal"
        class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
@@ -457,7 +1503,7 @@
             <i data-lucide="user-cog" class="w-4 h-4"></i>
           </div>
           <div>
-            <h3 class="text-sm font-bold text-slate-900">Edit User Privileges</h3>
+            <h3 class="text-sm font-bold text-slate-900">Edit User Account</h3>
             <p class="text-[11px] text-slate-400" x-text="'User: ' + editUsername"></p>
           </div>
         </div>
@@ -483,15 +1529,28 @@
           <input type="email" name="email" x-model="editEmail" class="form-control w-full min-h-[44px]" placeholder="user@gmail.com">
         </div>
 
-        <div>
+        <div x-data="{ showModalPass: false }">
           <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Reset Password (Optional)</label>
-          <input type="password" name="new_password" x-model="newPassword" class="form-control w-full min-h-[44px]" placeholder="Leave blank to keep current password">
+          <div class="relative">
+            <input :type="showModalPass ? 'text' : 'password'" 
+                   name="new_password" 
+                   x-model="newPassword" 
+                   class="form-control w-full min-h-[44px] pr-10" 
+                   placeholder="Leave blank to keep current password">
+            <button type="button" 
+                    @click="showModalPass = !showModalPass"
+                    class="absolute right-3 top-3 text-slate-400 hover:text-slate-700 transition focus:outline-none p-0.5 rounded cursor-pointer"
+                    :title="showModalPass ? 'Hide password' : 'Show password'"
+                    tabindex="-1">
+              <svg x-show="!showModalPass" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+              <svg x-show="showModalPass" x-cloak class="w-4 h-4 text-[#0B5CAD]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
+            </button>
+          </div>
         </div>
 
-        <!-- PRIMARY ACTION FIRST -->
         <div class="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-2.5">
           <button type="submit" class="btn btn-primary w-full sm:w-auto font-bold px-5 min-h-[40px]">
-            <span>Save Privileges</span>
+            <span>Save Changes</span>
           </button>
           <button type="button" @click="editModal = false" class="btn btn-secondary w-full sm:w-auto min-h-[40px]">
             <span>Cancel</span>

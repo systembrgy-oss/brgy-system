@@ -27,6 +27,7 @@ urlpatterns = [
     path('documents/apply/', views.document_request_create, name='document_request_create'),
     path('documents/<int:pk>/process/', views.document_process, name='document_process'),
     path('documents/<int:pk>/print/', views.document_view, name='document_view'),
+    path('verify/', views.document_verify, name='document_verify_search'),
     path('verify/<str:qr_hash>/', views.document_verify, name='document_verify'),
 
     # 3. Blotter & Incidents
@@ -48,6 +49,7 @@ urlpatterns = [
     path('audit-logs/', views.audit_logs_list, name='audit_logs_list'),
     path('users/', views.users_list, name='users_list'),
     path('settings/', views.barangay_settings_view, name='barangay_settings'),
+    path('profile/', views.profile_redirect_view, name='user_profile'),
     path('citizen-applications/', views.admin_registrations_list, name='admin_registrations'),
     path('citizen-applications/<int:pk>/process/', views.admin_registration_process, name='admin_registration_process'),
 

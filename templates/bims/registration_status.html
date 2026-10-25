@@ -144,6 +144,25 @@
   <script>
     document.addEventListener("DOMContentLoaded", function () {
       lucide.createIcons();
+
+      const searchForm = document.querySelector('form');
+      if (searchForm) {
+        searchForm.addEventListener('submit', function(e) {
+          if (searchForm.dataset.submitting === 'true') {
+            e.preventDefault();
+            return false;
+          }
+          searchForm.dataset.submitting = 'true';
+          const btn = searchForm.querySelector('button[type="submit"]');
+          if (btn) {
+            btn.style.pointerEvents = 'none';
+            btn.style.cursor = 'wait';
+            btn.classList.add('opacity-75');
+            btn.innerHTML = '<svg class="animate-spin -ml-1 mr-1.5 h-3.5 w-3.5 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> <span>Searching...</span>';
+            setTimeout(() => { btn.disabled = true; }, 10);
+          }
+        });
+      }
     });
   </script>
 </body>

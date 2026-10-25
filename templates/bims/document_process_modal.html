@@ -12,12 +12,35 @@
 
 {% block content %}
 <div class="card" style="max-width: 680px; margin: 0 auto;">
-  <div class="card-header flex items-center justify-between">
+  <div class="card-header flex items-center justify-between flex-wrap gap-2">
     <div class="card-title">
       <i data-lucide="stamp" class="text-[#0B5CAD]"></i>
       <span>Review Application, Documents & Official Signatories</span>
     </div>
-    <span class="badge badge-mediation font-mono text-xs">Request #{{ doc_req.RequestID }}</span>
+    <div class="flex items-center gap-2">
+      {% if doc_req.RequestStatus == 'Approved' %}
+        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-2xs">
+          <i data-lucide="stamp" style="width: 12px; height: 12px;" class="text-emerald-700"></i> Approved & Stamped
+        </span>
+      {% elif doc_req.RequestStatus == 'Released' %}
+        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-900 border border-indigo-300 shadow-2xs">
+          <i data-lucide="check-check" style="width: 12px; height: 12px;" class="text-indigo-700"></i> Released
+        </span>
+      {% elif doc_req.RequestStatus == 'Pending' %}
+        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs">
+          <i data-lucide="clock" style="width: 12px; height: 12px;" class="text-amber-700"></i> Pending Review
+        </span>
+      {% elif doc_req.RequestStatus == 'Rejected' %}
+        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-900 border border-rose-300 shadow-2xs">
+          <i data-lucide="x-circle" style="width: 12px; height: 12px;" class="text-rose-700"></i> Rejected
+        </span>
+      {% else %}
+        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300">
+          {{ doc_req.RequestStatus }}
+        </span>
+      {% endif %}
+      <span class="badge badge-mediation font-mono text-xs">Request #{{ doc_req.RequestID }}</span>
+    </div>
   </div>
   <div class="card-body space-y-5">
     <!-- Application Details Card with Edit Ability -->
@@ -36,7 +59,40 @@
         </button>
       </div>
       <div><strong>Address:</strong> {{ doc_req.ResidentID.HouseholdID.StreetAddress }}, {{ doc_req.ResidentID.HouseholdID.PurokID.PurokName }} (Household #{{ doc_req.ResidentID.HouseholdID.HouseholdNumber }})</div>
-      <div><strong>Document Type:</strong> <span class="text-[#0B5CAD] font-bold">{{ doc_req.DocumentTypeID.DocumentTypeName }}</span></div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <strong>Document Type:</strong>
+        {% if 'clearance' in doc_req.DocumentTypeID.DocumentTypeName|lower and 'business' not in doc_req.DocumentTypeID.DocumentTypeName|lower %}
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-bold bg-sky-50 text-sky-700 border border-sky-200">
+            <i data-lucide="shield-check" style="width: 13px; height: 13px;" class="text-sky-600"></i>
+            <span>{{ doc_req.DocumentTypeID.DocumentTypeName }}</span>
+          </span>
+        {% elif 'indigency' in doc_req.DocumentTypeID.DocumentTypeName|lower %}
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+            <i data-lucide="heart-handshake" style="width: 13px; height: 13px;" class="text-amber-600"></i>
+            <span>{{ doc_req.DocumentTypeID.DocumentTypeName }}</span>
+          </span>
+        {% elif 'residency' in doc_req.DocumentTypeID.DocumentTypeName|lower %}
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+            <i data-lucide="home" style="width: 13px; height: 13px;" class="text-emerald-600"></i>
+            <span>{{ doc_req.DocumentTypeID.DocumentTypeName }}</span>
+          </span>
+        {% elif 'business' in doc_req.DocumentTypeID.DocumentTypeName|lower %}
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-bold bg-purple-50 text-purple-800 border border-purple-200">
+            <i data-lucide="briefcase" style="width: 13px; height: 13px;" class="text-purple-600"></i>
+            <span>{{ doc_req.DocumentTypeID.DocumentTypeName }}</span>
+          </span>
+        {% elif 'job' in doc_req.DocumentTypeID.DocumentTypeName|lower or 'seeker' in doc_req.DocumentTypeID.DocumentTypeName|lower %}
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200">
+            <i data-lucide="award" style="width: 13px; height: 13px;" class="text-teal-600"></i>
+            <span>{{ doc_req.DocumentTypeID.DocumentTypeName }}</span>
+          </span>
+        {% else %}
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+            <i data-lucide="file-text" style="width: 13px; height: 13px;" class="text-slate-500"></i>
+            <span>{{ doc_req.DocumentTypeID.DocumentTypeName }}</span>
+          </span>
+        {% endif %}
+      </div>
       <div><strong>Standard Fee:</strong> PHP {{ doc_req.DocumentTypeID.StandardFee|floatformat:2 }}</div>
       <div><strong>Stated Purpose:</strong> {{ doc_req.Purpose }}</div>
       <div><strong>Date Filed:</strong> {{ doc_req.RequestDate|date:"F d, Y - h:i A" }}</div>
@@ -176,9 +232,14 @@
             <span>Approve & Digitally Stamp</span>
           </button>
 
-          <!-- 2. Release Action -->
-          <button type="submit" name="action" value="release" class="btn btn-primary min-h-[44px]">
-            <i data-lucide="send" style="width: 16px; height: 16px;"></i>
+          <!-- 2. Release Action with Dedicated Indigo Styling -->
+          <button type="submit" name="action" value="release" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-bold text-xs bg-indigo-600 hover:bg-indigo-700 text-white min-h-[44px] transition-colors shadow-xs"
+                  data-confirm="Mark this certificate as officially released to {{ doc_req.ResidentID.full_name }}?"
+                  data-confirm-title="Confirm Document Release"
+                  data-confirm-btn="Mark Released"
+                  data-cancel-btn="Cancel"
+                  data-confirm-variant="primary">
+            <i data-lucide="check-check" style="width: 16px; height: 16px;"></i>
             <span>Mark Released</span>
           </button>
         </div>
